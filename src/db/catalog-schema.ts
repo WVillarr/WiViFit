@@ -58,3 +58,11 @@ export const exerciseSecondaryMuscles = sqliteTable(
 
 export type ExerciseRow = typeof exercises.$inferSelect;
 export type ExerciseSecondaryMuscleRow = typeof exerciseSecondaryMuscles.$inferSelect;
+
+/**
+ * Fields needed to render a list row (see ExerciseRow component). List
+ * queries select only these so they don't haul the long instruction texts
+ * they never render — which also keeps them well clear of the 1MB buffer
+ * expo-sqlite's web backend uses to hand results back from its worker.
+ */
+export type ExerciseListItem = Pick<ExerciseRow, 'id' | 'name' | 'target'>;

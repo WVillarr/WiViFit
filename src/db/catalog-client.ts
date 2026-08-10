@@ -34,14 +34,21 @@ export interface ExerciseSearchHit {
   id: string;
 }
 
+/** name weighted well above instructions/target/equipment so title matches win. */
+const FTS_WEIGHTS = sql.raw('10.0, 1.0, 1.0, 2.0, 1.0');
+
 /**
  * FTS5 full-text search over exercise names/instructions. The virtual table
  * is created by the build pipeline (see scripts/build-catalog.ts) and is not
  * representable in the Drizzle schema DSL, so it's queried with raw SQL.
+ *
+ * Native only. On web, expo-sqlite runs a wa-sqlite WASM build compiled
+ * without FTS5 (nor FTS3/4 or R-Tree), so this rejects with `no such module:
+ * fts5` and the search field comes up empty — the muscle filters and every
+ * other catalog query still work. Fixing it would mean shipping a custom
+ * SQLite build or adding a LIKE-based fallback; neither is worth it while web
+ * is only a preview target.
  */
-/** name weighted well above instructions/target/equipment so title matches win. */
-const FTS_WEIGHTS = sql.raw('10.0, 1.0, 1.0, 2.0, 1.0');
-
 export async function searchExercises(
   db: CatalogDb,
   query: string,

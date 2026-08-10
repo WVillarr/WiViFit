@@ -8,7 +8,7 @@ import { MannequinView, MuscleBodyMap } from '@/components/muscle-body-map';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
-import { exercises, ExerciseRow as ExerciseRowData, useCatalogDb } from '@/db';
+import { ExerciseListItem, exercises, useCatalogDb } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 
@@ -21,7 +21,7 @@ export default function BodyScreen() {
 
   const [mannequinView, setMannequinView] = useState<MannequinView>('front');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
-  const [results, setResults] = useState<ExerciseRowData[]>([]);
+  const [results, setResults] = useState<ExerciseListItem[]>([]);
 
   useEffect(() => {
     if (!selectedMuscle) {
@@ -31,7 +31,7 @@ export default function BodyScreen() {
 
     let cancelled = false;
 
-    db.select()
+    db.select({ id: exercises.id, name: exercises.name, target: exercises.target })
       .from(exercises)
       .where(eq(exercises.target, selectedMuscle))
       .limit(200)

@@ -7,7 +7,7 @@ import { ExerciseRow } from '@/components/exercise-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
-import { exercises, ExerciseRow as ExerciseRowData, searchExercises, useCatalogDb } from '@/db';
+import { exercises, ExerciseListItem, searchExercises, useCatalogDb } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { resolveMuscleSynonym } from '@/i18n/muscle-synonyms';
 import { useTranslation } from '@/i18n/use-translation';
@@ -36,6 +36,9 @@ const MUSCLE_FILTERS = [
   'levator_scapulae',
 ] as const;
 
+// Only what ExerciseRow renders — see ExerciseListItem for why this matters.
+const LIST_COLUMNS = { id: exercises.id, name: exercises.name, target: exercises.target };
+
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function ExercisesScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
-  const [results, setResults] = useState<ExerciseRowData[]>([]);
+  const [results, setResults] = useState<ExerciseListItem[]>([]);
   const debouncedSearch = useDebouncedValue(searchText, 150);
 
   const synonymMuscle = useMemo(() => resolveMuscleSynonym(debouncedSearch), [debouncedSearch]);
@@ -64,7 +67,7 @@ export default function ExercisesScreen() {
     async function run() {
       const hasFreeTextQuery = debouncedSearch.trim().length > 0 && !synonymMuscle;
 
-      let rows: ExerciseRowData[];
+      let rows: ExerciseListItem[];
       if (hasFreeTextQuery) {
         const hits = await searchExercises(db, debouncedSearch, 100);
         const ids = hits.map((h) => h.id);
@@ -72,22 +75,21 @@ export default function ExercisesScreen() {
           rows = [];
         } else {
           const byId = new Map(
-            (await db.select().from(exercises).where(inArray(exercises.id, ids))).map((row) => [
-              row.id,
-              row,
-            ]),
+            (
+              await db.select(LIST_COLUMNS).from(exercises).where(inArray(exercises.id, ids))
+            ).map((row) => [row.id, row]),
           );
-          rows = ids.map((id) => byId.get(id)).filter((r): r is ExerciseRowData => r != null);
+          rows = ids.map((id) => byId.get(id)).filter((r): r is ExerciseListItem => r != null);
           if (effectiveMuscle) rows = rows.filter((r) => r.target === effectiveMuscle);
         }
       } else if (effectiveMuscle) {
         rows = await db
-          .select()
+          .select(LIST_COLUMNS)
           .from(exercises)
           .where(eq(exercises.target, effectiveMuscle))
           .limit(200);
       } else {
-        rows = await db.select().from(exercises).orderBy(exercises.name).limit(200);
+        rows = await db.select(LIST_COLUMNS).from(exercises).orderBy(exercises.name).limit(200);
       }
 
       if (!cancelled) setResults(rows);

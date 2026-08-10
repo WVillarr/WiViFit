@@ -5,11 +5,11 @@ import { Pressable, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
-import { ExerciseRow as ExerciseRowData } from '@/db';
+import { ExerciseListItem } from '@/db';
 import { useTranslation } from '@/i18n/use-translation';
 import { mediaProvider } from '@/media';
 
-export function ExerciseRow({ item }: { item: ExerciseRowData }) {
+export function ExerciseRow({ item }: { item: ExerciseListItem }) {
   const { t } = useTranslation();
 
   return (
