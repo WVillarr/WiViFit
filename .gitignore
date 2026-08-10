@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# catalog pipeline
+/.cache/
+/catalog-review.csv

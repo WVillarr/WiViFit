@@ -1,0 +1,99 @@
+{
+  "common": {
+    "welcome": "Bienvenido"
+  },
+  "tabs": {
+    "exercises": "Ejercicios",
+    "home": "Inicio",
+    "explore": "Explorar",
+    "body": "Muñeco"
+  },
+  "exercises": {
+    "searchPlaceholder": "Buscar ejercicios...",
+    "noResults": "No se encontraron ejercicios",
+    "allMuscles": "Todos",
+    "resultsCount": "{{count}} ejercicios"
+  },
+  "body": {
+    "title": "Toca un músculo",
+    "prompt": "Selecciona un músculo para ver sus ejercicios",
+    "viewFront": "Ver frente",
+    "viewBack": "Ver espalda"
+  },
+  "exercise": {
+    "instructions": "Instrucciones",
+    "targetMuscle": "Músculo principal",
+    "secondaryMuscles": "Músculos secundarios",
+    "equipment": "Equipo",
+    "difficulty": "Dificultad",
+    "attributionPrefix": "Recurso multimedia de"
+  },
+  "difficulty": {
+    "1": "Principiante",
+    "2": "Intermedio",
+    "3": "Avanzado"
+  },
+  "muscles": {
+    "abductors": "Abductores de cadera",
+    "abs": "Abdomen",
+    "adductors": "Aductores de cadera",
+    "biceps": "Bíceps",
+    "calves": "Gemelos",
+    "cardiovascular_system": "Cardio",
+    "delts": "Hombros",
+    "forearms": "Antebrazos",
+    "glutes": "Glúteos",
+    "hamstrings": "Isquiotibiales",
+    "lats": "Dorsales",
+    "levator_scapulae": "Elevador de la escápula",
+    "pectorals": "Pecho",
+    "quads": "Cuádriceps",
+    "serratus_anterior": "Serrato anterior",
+    "spine": "Zona lumbar",
+    "traps": "Trapecio",
+    "triceps": "Tríceps",
+    "upper_back": "Espalda alta"
+  },
+  "equipment": {
+    "assisted": "Asistido",
+    "band": "Banda",
+    "barbell": "Barra",
+    "body_weight": "Peso corporal",
+    "bosu_ball": "Bosu",
+    "cable": "Polea",
+    "dumbbell": "Mancuerna",
+    "elliptical_machine": "Elíptica",
+    "ez_barbell": "Barra Z",
+    "hammer": "Máquina hammer",
+    "kettlebell": "Pesa rusa",
+    "leverage_machine": "Máquina de palanca",
+    "medicine_ball": "Balón medicinal",
+    "olympic_barbell": "Barra olímpica",
+    "resistance_band": "Banda de resistencia",
+    "roller": "Rodillo",
+    "rope": "Cuerda",
+    "skierg_machine": "Máquina SkiErg",
+    "sled_machine": "Trineo",
+    "smith_machine": "Máquina Smith",
+    "stability_ball": "Fitball",
+    "stationary_bike": "Bicicleta estática",
+    "stepmill_machine": "Escaladora",
+    "tire": "Neumático",
+    "trap_bar": "Barra hexagonal",
+    "upper_body_ergometer": "Ergómetro de brazos",
+    "weighted": "Con peso adicional",
+    "wheel_roller": "Rueda abdominal"
+  },
+  "bodyParts": {
+    "back": "Espalda",
+    "cardio": "Cardio",
+    "chest": "Pecho",
+    "lower_arms": "Antebrazos",
+    "lower_legs": "Piernas (parte baja)",
+    "neck": "Cuello",
+    "shoulders": "Hombros",
+    "upper_arms": "Brazos",
+    "upper_legs": "Piernas (parte alta)",
+    "waist": "Cintura"
+  }
+}

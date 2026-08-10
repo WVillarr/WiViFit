@@ -1,16 +1,18 @@
 {
   "expo": {
-    "name": "fit",
-    "slug": "fit",
+    "name": "WiviFit",
+    "slug": "wivifit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fit",
+    "scheme": "wivifit",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.dasistemas.wivifit",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.dasistemas.wivifit",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -20,7 +22,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -32,7 +34,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-localization",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

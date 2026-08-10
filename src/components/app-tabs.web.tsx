@@ -14,18 +14,27 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useTranslation } from '@/i18n/use-translation';
 
 export default function AppTabs() {
+  const { t } = useTranslation();
+
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
+          <TabTrigger name="exercises" href="/(tabs)/exercises" asChild>
+            <TabButton>{t('tabs.exercises')}</TabButton>
           </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+          <TabTrigger name="body" href="/(tabs)/body" asChild>
+            <TabButton>{t('tabs.body')}</TabButton>
+          </TabTrigger>
+          <TabTrigger name="home" href="/(tabs)" asChild>
+            <TabButton>{t('tabs.home')}</TabButton>
+          </TabTrigger>
+          <TabTrigger name="explore" href="/(tabs)/explore" asChild>
+            <TabButton>{t('tabs.explore')}</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -38,7 +47,8 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
+        style={styles.tabButtonView}
+      >
         <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
           {children}
         </ThemedText>
