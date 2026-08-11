@@ -1,10 +1,10 @@
 import { eq, inArray } from 'drizzle-orm';
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BodyMapPager } from '@/components/body-map';
 import { ExerciseRow } from '@/components/exercise-row';
-import { MannequinView, MuscleBodyMap } from '@/components/muscle-body-map';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -60,7 +60,6 @@ export default function ExercisesScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('list');
-  const [mannequinView, setMannequinView] = useState<MannequinView>('front');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
   const [results, setResults] = useState<ExerciseListItem[]>([]);
   const debouncedSearch = useDebouncedValue(searchText, 150);
@@ -170,22 +169,7 @@ export default function ExercisesScreen() {
             type="backgroundElement"
             style={[styles.bodyCard, { borderColor: theme.border }]}
           >
-            <Pressable
-              onPress={() => setMannequinView((v) => (v === 'front' ? 'back' : 'front'))}
-              style={[styles.flipButton, { backgroundColor: theme.background }]}
-            >
-              <ThemedText type="small">
-                {mannequinView === 'front' ? t('exercises.viewBack') : t('exercises.viewFront')}
-              </ThemedText>
-            </Pressable>
-
-            <View style={styles.mannequinWrap}>
-              <MuscleBodyMap
-                view={mannequinView}
-                selectedMuscle={selectedMuscle}
-                onSelectMuscle={selectMuscle}
-              />
-            </View>
+            <BodyMapPager selectedMuscle={selectedMuscle} onSelectMuscle={selectMuscle} />
 
             <FilterChip
               label={t(`muscles.${CARDIO_MUSCLE}`)}
@@ -312,15 +296,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.two,
-  },
-  flipButton: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + 2,
-    borderRadius: Radius.pill,
-  },
-  mannequinWrap: {
-    height: 300,
-    aspectRatio: 240 / 520,
   },
   listContent: {
     paddingHorizontal: Spacing.three,

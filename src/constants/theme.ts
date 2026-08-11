@@ -21,10 +21,18 @@ export const Colors = {
     /** Tinted accent background for chips and highlights. */
     accentSoft: '#FFEDE7',
     onAccent: '#FFFFFF',
-    /** Anatomy figure: lit surface, shadowed surface, muscle separation lines. */
-    bodyLit: '#EDF1F6',
-    bodyShade: '#B4C0CE',
-    bodyLine: '#7D8B9C',
+    /**
+     * Anatomy plate. `bodyBase` is the backdrop the muscle regions tile over,
+     * `bodyMuted` an unselected muscle, `bodyInert` the parts that carry no
+     * muscle (head, hands, feet) and `bodyLine` the seam between regions.
+     * `bodyLine` matches `bodyBase` on purpose: the regions tile edge to edge,
+     * so a fat seam in the backdrop colour is what carves the channel between
+     * neighbouring muscles. The selected muscle is filled with `accent`.
+     */
+    bodyBase: '#FDF2EC',
+    bodyMuted: '#F0B49B',
+    bodyInert: '#AEB6BF',
+    bodyLine: '#FDF2EC',
   },
   dark: {
     text: '#FFFFFF',
@@ -37,9 +45,10 @@ export const Colors = {
     accentAlt: '#FFA51F',
     accentSoft: '#2A150F',
     onAccent: '#FFFFFF',
-    bodyLit: '#454E5A',
-    bodyShade: '#272E36',
-    bodyLine: '#68737F',
+    bodyBase: '#2A1D17',
+    bodyMuted: '#9B5B3E',
+    bodyInert: '#5C646E',
+    bodyLine: '#1A1D20',
   },
 } as const;
 
