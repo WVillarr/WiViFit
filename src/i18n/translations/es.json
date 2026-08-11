@@ -5,20 +5,36 @@
   "tabs": {
     "exercises": "Ejercicios",
     "home": "Inicio",
-    "explore": "Explorar",
-    "body": "Muñeco"
+    "explore": "Explorar"
+  },
+  "home": {
+    "greetingMorning": "Buenos días",
+    "greetingAfternoon": "Buenas tardes",
+    "greetingEvening": "Buenas noches",
+    "motivation1": "Cada repetición cuenta",
+    "motivation2": "Tu única competencia eres tú",
+    "motivation3": "Hoy es un buen día para moverte",
+    "motivation4": "Pequeños pasos, grandes cambios",
+    "ctaLabel": "Entrena ahora",
+    "ctaHint": "Elegimos un ejercicio para ti",
+    "suggestedTitle": "Sugeridos para hoy",
+    "shuffle": "Mezclar",
+    "quickAccessTitle": "Grupos musculares"
   },
   "exercises": {
     "searchPlaceholder": "Buscar ejercicios...",
     "noResults": "No se encontraron ejercicios",
     "allMuscles": "Todos",
-    "resultsCount": "{{count}} ejercicios"
-  },
-  "body": {
-    "title": "Toca un músculo",
-    "prompt": "Selecciona un músculo para ver sus ejercicios",
+    "resultsCount": "{{count}} ejercicios",
+    "modeList": "Lista",
+    "modeBody": "Cuerpo",
     "viewFront": "Ver frente",
     "viewBack": "Ver espalda"
+  },
+  "explore": {
+    "title": "Categorías",
+    "subtitle": "Explora ejercicios por zona del cuerpo",
+    "back": "Todas las categorías"
   },
   "exercise": {
     "instructions": "Instrucciones",

@@ -2,18 +2,20 @@ import { eq } from 'drizzle-orm';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { exerciseSecondaryMuscles, exercises, ExerciseRow, useCatalogDb } from '@/db';
+import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 import { mediaProvider } from '@/media';
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const db = useCatalogDb();
+  const theme = useTheme();
   const { t, locale } = useTranslation();
 
   const [exercise, setExercise] = useState<ExerciseRow | null>(null);
@@ -45,51 +47,65 @@ export default function ExerciseDetailScreen() {
   );
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <Image
-        source={{ uri: mediaProvider.getGifUri(exercise.gifPath) }}
-        style={styles.gif}
-        contentFit="contain"
-      />
+    <ScrollView contentContainerStyle={styles.scroll}>
+      <ThemedView style={styles.content}>
+        <Image
+          source={{ uri: mediaProvider.getGifUri(exercise.gifPath) }}
+          style={[styles.gif, { backgroundColor: theme.backgroundElement }]}
+          contentFit="contain"
+        />
 
-      <ThemedText type="title" style={styles.title}>
-        {exercise.name}
-      </ThemedText>
+        <ThemedText type="subtitle" style={styles.title}>
+          {exercise.name}
+        </ThemedText>
 
-      <ThemedView style={styles.metaRow}>
-        <MetaChip label={t('exercise.targetMuscle')} value={t(`muscles.${exercise.target}`)} />
-        <MetaChip label={t('exercise.equipment')} value={t(`equipment.${exercise.equipment}`)} />
-        <MetaChip label={t('exercise.difficulty')} value={t(`difficulty.${exercise.difficulty}`)} />
-      </ThemedView>
+        <View style={styles.metaRow}>
+          <MetaChip label={t('exercise.targetMuscle')} value={t(`muscles.${exercise.target}`)} />
+          <MetaChip label={t('exercise.equipment')} value={t(`equipment.${exercise.equipment}`)} />
+          <MetaChip
+            label={t('exercise.difficulty')}
+            value={t(`difficulty.${exercise.difficulty}`)}
+          />
+        </View>
 
-      {secondaryMuscles.length > 0 && (
+        {secondaryMuscles.length > 0 && (
+          <ThemedView style={styles.section}>
+            <ThemedText type="smallBold">{t('exercise.secondaryMuscles')}</ThemedText>
+            <ThemedText themeColor="textSecondary">
+              {secondaryMuscles.map((m) => t(`muscles.${m}`)).join(', ')}
+            </ThemedText>
+          </ThemedView>
+        )}
+
         <ThemedView style={styles.section}>
-          <ThemedText type="smallBold">{t('exercise.secondaryMuscles')}</ThemedText>
-          <ThemedText themeColor="textSecondary">
-            {secondaryMuscles.map((m) => t(`muscles.${m}`)).join(', ')}
-          </ThemedText>
+          <ThemedText type="smallBold">{t('exercise.instructions')}</ThemedText>
+          {steps.map((step, i) => (
+            <View key={i} style={styles.stepRow}>
+              <ThemedView style={[styles.stepBadge, { backgroundColor: theme.accentSoft }]}>
+                <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                  {i + 1}
+                </ThemedText>
+              </ThemedView>
+              <ThemedText style={styles.stepText}>{step}</ThemedText>
+            </View>
+          ))}
         </ThemedView>
-      )}
 
-      <ThemedView style={styles.section}>
-        <ThemedText type="smallBold">{t('exercise.instructions')}</ThemedText>
-        {steps.map((step, i) => (
-          <ThemedText key={i} style={styles.step}>
-            {i + 1}. {step}
-          </ThemedText>
-        ))}
+        <ThemedText type="small" themeColor="textSecondary" style={styles.attribution}>
+          {t('exercise.attributionPrefix')} {exercise.attribution}
+        </ThemedText>
       </ThemedView>
-
-      <ThemedText type="small" themeColor="textSecondary" style={styles.attribution}>
-        {t('exercise.attributionPrefix')} {exercise.attribution}
-      </ThemedText>
     </ScrollView>
   );
 }
 
 function MetaChip({ label, value }: { label: string; value: string }) {
+  const theme = useTheme();
   return (
-    <ThemedView type="backgroundElement" style={styles.metaChip}>
+    <ThemedView
+      type="backgroundElement"
+      style={[styles.metaChip, { borderColor: theme.border }]}
+    >
       <ThemedText type="small" themeColor="textSecondary">
         {label}
       </ThemedText>
@@ -99,17 +115,24 @@ function MetaChip({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
   content: {
+    flex: 1,
+    maxWidth: MaxContentWidth,
     padding: Spacing.three,
     gap: Spacing.four,
   },
   gif: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.lg,
   },
   title: {
     textTransform: 'capitalize',
+    lineHeight: 38,
   },
   metaRow: {
     flexDirection: 'row',
@@ -119,16 +142,30 @@ const styles = StyleSheet.create({
   metaChip: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.half,
   },
   section: {
     gap: Spacing.two,
   },
-  step: {
-    lineHeight: 22,
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+  },
+  stepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepText: {
+    flex: 1,
+    lineHeight: 24,
   },
   attribution: {
-    marginTop: Spacing.three,
+    marginTop: Spacing.two,
   },
 });

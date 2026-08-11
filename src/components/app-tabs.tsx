@@ -20,11 +20,6 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Icon sf="magnifyingglass" md="search" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="body">
-        <NativeTabs.Trigger.Label>{t('tabs.body')}</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="figure.arms.open" md="accessibility" />
-      </NativeTabs.Trigger>
-
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>{t('tabs.home')}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon

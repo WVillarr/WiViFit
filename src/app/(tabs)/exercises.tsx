@@ -1,12 +1,13 @@
 import { eq, inArray } from 'drizzle-orm';
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExerciseRow } from '@/components/exercise-row';
+import { MannequinView, MuscleBodyMap } from '@/components/muscle-body-map';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { exercises, ExerciseListItem, searchExercises, useCatalogDb } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { resolveMuscleSynonym } from '@/i18n/muscle-synonyms';
@@ -36,6 +37,10 @@ const MUSCLE_FILTERS = [
   'levator_scapulae',
 ] as const;
 
+const CARDIO_MUSCLE = 'cardiovascular_system';
+
+type FilterMode = 'list' | 'body';
+
 // Only what ExerciseRow renders — see ExerciseListItem for why this matters.
 const LIST_COLUMNS = { id: exercises.id, name: exercises.name, target: exercises.target };
 
@@ -54,6 +59,8 @@ export default function ExercisesScreen() {
   const { t } = useTranslation();
 
   const [searchText, setSearchText] = useState('');
+  const [filterMode, setFilterMode] = useState<FilterMode>('list');
+  const [mannequinView, setMannequinView] = useState<MannequinView>('front');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
   const [results, setResults] = useState<ExerciseListItem[]>([]);
   const debouncedSearch = useDebouncedValue(searchText, 150);
@@ -103,6 +110,10 @@ export default function ExercisesScreen() {
     };
   }, [db, debouncedSearch, effectiveMuscle, synonymMuscle]);
 
+  function selectMuscle(muscle: string) {
+    setSelectedMuscle((current) => (current === muscle ? null : muscle));
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -113,35 +124,76 @@ export default function ExercisesScreen() {
           placeholderTextColor={theme.textSecondary}
           style={[
             styles.searchInput,
-            { color: theme.text, backgroundColor: theme.backgroundElement },
+            {
+              color: theme.text,
+              backgroundColor: theme.backgroundElement,
+              borderColor: theme.border,
+            },
           ]}
           autoCorrect={false}
         />
 
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={MUSCLE_FILTERS}
-          keyExtractor={(m) => m}
-          style={styles.chipRow}
-          contentContainerStyle={styles.chipRowContent}
-          renderItem={({ item: muscle }) => {
-            const selected = selectedMuscle === muscle;
-            return (
-              <Pressable
-                onPress={() => setSelectedMuscle(selected ? null : muscle)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: selected ? theme.backgroundSelected : theme.backgroundElement,
-                  },
-                ]}
-              >
-                <ThemedText type="small">{t(`muscles.${muscle}`)}</ThemedText>
-              </Pressable>
-            );
-          }}
-        />
+        <ThemedView
+          type="backgroundElement"
+          style={[styles.segmentedControl, { borderColor: theme.border }]}
+        >
+          <SegmentButton
+            label={t('exercises.modeList')}
+            selected={filterMode === 'list'}
+            onPress={() => setFilterMode('list')}
+          />
+          <SegmentButton
+            label={t('exercises.modeBody')}
+            selected={filterMode === 'body'}
+            onPress={() => setFilterMode('body')}
+          />
+        </ThemedView>
+
+        {filterMode === 'list' ? (
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={MUSCLE_FILTERS}
+            keyExtractor={(m) => m}
+            style={styles.chipRow}
+            contentContainerStyle={styles.chipRowContent}
+            renderItem={({ item: muscle }) => (
+              <FilterChip
+                label={t(`muscles.${muscle}`)}
+                selected={selectedMuscle === muscle}
+                onPress={() => selectMuscle(muscle)}
+              />
+            )}
+          />
+        ) : (
+          <ThemedView
+            type="backgroundElement"
+            style={[styles.bodyCard, { borderColor: theme.border }]}
+          >
+            <Pressable
+              onPress={() => setMannequinView((v) => (v === 'front' ? 'back' : 'front'))}
+              style={[styles.flipButton, { backgroundColor: theme.background }]}
+            >
+              <ThemedText type="small">
+                {mannequinView === 'front' ? t('exercises.viewBack') : t('exercises.viewFront')}
+              </ThemedText>
+            </Pressable>
+
+            <View style={styles.mannequinWrap}>
+              <MuscleBodyMap
+                view={mannequinView}
+                selectedMuscle={selectedMuscle}
+                onSelectMuscle={selectMuscle}
+              />
+            </View>
+
+            <FilterChip
+              label={t(`muscles.${CARDIO_MUSCLE}`)}
+              selected={selectedMuscle === CARDIO_MUSCLE}
+              onPress={() => selectMuscle(CARDIO_MUSCLE)}
+            />
+          </ThemedView>
+        )}
 
         <FlatList
           data={results}
@@ -159,32 +211,125 @@ export default function ExercisesScreen() {
   );
 }
 
+function FilterChip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          backgroundColor: selected ? theme.accent : theme.backgroundElement,
+          borderColor: selected ? theme.accent : theme.border,
+        },
+        pressed && styles.pressed,
+      ]}
+    >
+      <ThemedText type="small" style={selected ? { color: theme.onAccent } : undefined}>
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+function SegmentButton({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.segmentButton,
+        { backgroundColor: selected ? theme.accent : 'transparent' },
+      ]}
+    >
+      <ThemedText
+        type="smallBold"
+        style={selected ? { color: theme.onAccent } : { color: theme.textSecondary }}
+      >
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
+  container: { flex: 1, alignItems: 'center' },
+  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
   searchInput: {
     marginHorizontal: Spacing.three,
-    marginTop: Spacing.two,
+    marginTop: Platform.select({ web: Spacing.six, default: Spacing.three }),
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
+    paddingVertical: Spacing.two + 2,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
     fontSize: 16,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.two,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.half,
+    gap: Spacing.half,
+  },
+  segmentButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.one + 2,
+    borderRadius: Radius.pill,
   },
   chipRow: { flexGrow: 0, marginTop: Spacing.two },
   chipRowContent: { paddingHorizontal: Spacing.three, gap: Spacing.two },
   chip: {
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    borderRadius: Spacing.four,
+    paddingVertical: Spacing.one + 2,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  pressed: { opacity: 0.85 },
+  bodyCard: {
+    alignItems: 'center',
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.two,
+    paddingVertical: Spacing.three,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.two,
+  },
+  flipButton: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + 2,
+    borderRadius: Radius.pill,
+  },
+  mannequinWrap: {
+    height: 300,
+    aspectRatio: 240 / 520,
   },
   listContent: {
     paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.two,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.four,
-    gap: Spacing.one,
+    gap: Spacing.two,
   },
   emptyText: {
     textAlign: 'center',
-    marginTop: Spacing.six,
+    marginTop: Spacing.five,
   },
 });

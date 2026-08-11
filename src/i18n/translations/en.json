@@ -5,20 +5,36 @@
   "tabs": {
     "exercises": "Exercises",
     "home": "Home",
-    "explore": "Explore",
-    "body": "Body"
+    "explore": "Explore"
+  },
+  "home": {
+    "greetingMorning": "Good morning",
+    "greetingAfternoon": "Good afternoon",
+    "greetingEvening": "Good evening",
+    "motivation1": "Every rep counts",
+    "motivation2": "Your only competition is you",
+    "motivation3": "Today's a good day to move",
+    "motivation4": "Small steps, big changes",
+    "ctaLabel": "Train now",
+    "ctaHint": "We picked an exercise for you",
+    "suggestedTitle": "Suggested for today",
+    "shuffle": "Shuffle",
+    "quickAccessTitle": "Muscle groups"
   },
   "exercises": {
     "searchPlaceholder": "Search exercises...",
     "noResults": "No exercises found",
     "allMuscles": "All",
-    "resultsCount": "{{count}} exercises"
-  },
-  "body": {
-    "title": "Tap a muscle",
-    "prompt": "Select a muscle to see its exercises",
+    "resultsCount": "{{count}} exercises",
+    "modeList": "List",
+    "modeBody": "Body",
     "viewFront": "View front",
     "viewBack": "View back"
+  },
+  "explore": {
+    "title": "Categories",
+    "subtitle": "Browse exercises by body area",
+    "back": "All categories"
   },
   "exercise": {
     "instructions": "Instructions",
