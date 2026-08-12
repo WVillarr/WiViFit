@@ -10,12 +10,18 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
+import { enableFreeze } from 'react-native-screens';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors, FontFamily, type Palette } from '@/constants/theme';
 import { CATALOG_DB_NAME } from '@/db';
 
 SplashScreen.preventAutoHideAsync();
+
+// Off by default in react-native-screens. Without it the two tabs you aren't
+// looking at keep re-rendering behind the one you are — including Home's
+// looping CTA pulse — and so does the list underneath a pushed exercise.
+enableFreeze(true);
 
 const catalogDbAsset = require('../../assets/catalog.db');
 

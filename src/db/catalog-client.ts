@@ -4,6 +4,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useMemo } from 'react';
 
 import * as catalogSchema from './catalog-schema';
+import { FTS_BM25_WEIGHTS } from './fts-weights';
 
 /**
  * Bump whenever scripts/build-catalog.ts regenerates assets/catalog.db with
@@ -35,7 +36,7 @@ export interface ExerciseSearchHit {
 }
 
 /** name weighted well above instructions/target/equipment so title matches win. */
-const FTS_WEIGHTS = sql.raw('10.0, 1.0, 1.0, 2.0, 1.0');
+const FTS_WEIGHTS = sql.raw(FTS_BM25_WEIGHTS);
 
 /**
  * FTS5 full-text search over exercise names/instructions. The virtual table

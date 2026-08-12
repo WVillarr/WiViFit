@@ -2,7 +2,7 @@ import { sql, eq } from 'drizzle-orm';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet } from 'react-native';
+import { Platform, ScrollView, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
   FadeInRight,
@@ -14,10 +14,11 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradientSurface } from '@/components/gradient-surface';
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, CardShadow, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { exercises, ExerciseListItem, useCatalogDb } from '@/db';
+import { exercises, ExerciseListItem, useCatalogDb, useFavorites, useRecentlyViewed } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 import { mediaProvider } from '@/media';
@@ -40,6 +41,8 @@ export default function HomeScreen() {
   const db = useCatalogDb();
   const theme = useTheme();
   const { t } = useTranslation();
+  const { items: favoriteItems } = useFavorites();
+  const recentItems = useRecentlyViewed();
 
   const greeting = useGreeting();
   const [motivationIndex, setMotivationIndex] = useState(1);
@@ -114,10 +117,7 @@ export default function HomeScreen() {
         </ThemedView>
 
         <Animated.View style={pulseStyle}>
-          <Pressable
-            onPress={onTrainNow}
-            style={({ pressed }) => [styles.ctaWrap, pressed && styles.pressed]}
-          >
+          <PressableScale onPress={onTrainNow} scaleTo={0.98} style={styles.ctaWrap}>
             <GradientSurface style={styles.ctaCard}>
               <ThemedView style={styles.ctaTextGroup}>
                 <ThemedText type="subtitle" style={{ color: theme.onAccent }}>
@@ -131,42 +131,57 @@ export default function HomeScreen() {
                 <ThemedText style={[styles.ctaArrow, { color: theme.onAccent }]}>→</ThemedText>
               </ThemedView>
             </GradientSurface>
-          </Pressable>
+          </PressableScale>
         </Animated.View>
+
+        {favoriteItems.length > 0 && (
+          <ExerciseShelf title={t('home.favoritesTitle')} items={favoriteItems} />
+        )}
+        {recentItems.length > 0 && (
+          <ExerciseShelf title={t('home.recentTitle')} items={recentItems} />
+        )}
 
         <ThemedText type="sectionTitle" style={styles.sectionLabel}>
           {t('home.quickAccessTitle')}
         </ThemedText>
-        <FlatList
+        {/* Six fixed pills and eight cards below — both rows render in full
+            either way, so a ScrollView drops the virtualization bookkeeping
+            without changing what's on screen. */}
+        <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={QUICK_MUSCLES}
-          keyExtractor={(m) => m}
           style={styles.chipRow}
           contentContainerStyle={styles.chipRowContent}
-          renderItem={({ item: muscle }) => (
-            <MuscleChip muscle={muscle} selected={activeMuscle === muscle} onPress={onChipPress} />
-          )}
-        />
+        >
+          {QUICK_MUSCLES.map((muscle) => (
+            <MuscleChip
+              key={muscle}
+              muscle={muscle}
+              selected={activeMuscle === muscle}
+              onPress={onChipPress}
+            />
+          ))}
+        </ScrollView>
 
         <ThemedView style={styles.sectionHeaderRow}>
           <ThemedText type="sectionTitle">
             {activeMuscle ? t(`muscles.${activeMuscle}`) : t('home.suggestedTitle')}
           </ThemedText>
-          <Pressable onPress={onShuffle} hitSlop={10}>
+          <PressableScale onPress={onShuffle} scaleTo={0.92} hitSlop={10}>
             <ShuffleLabel />
-          </Pressable>
+          </PressableScale>
         </ThemedView>
 
-        <FlatList
+        <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={suggested}
-          keyExtractor={(item) => item.id}
           style={styles.suggestedRow}
           contentContainerStyle={styles.suggestedRowContent}
-          renderItem={({ item, index }) => <SuggestedCard item={item} index={index} />}
-        />
+        >
+          {suggested.map((item, index) => (
+            <SuggestedCard key={item.id} item={item} index={index} />
+          ))}
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -194,15 +209,15 @@ function MuscleChip({
   const { t } = useTranslation();
   const theme = useTheme();
   return (
-    <Pressable
+    <PressableScale
       onPress={() => onPress(muscle)}
-      style={({ pressed }) => [
+      scaleTo={0.94}
+      style={[
         styles.chip,
         {
           backgroundColor: selected ? theme.accent : theme.backgroundElement,
           borderColor: selected ? theme.accent : theme.border,
         },
-        pressed && styles.pressed,
       ]}
     >
       <ThemedText
@@ -212,7 +227,29 @@ function MuscleChip({
       >
         {t(`muscles.${muscle}`)}
       </ThemedText>
-    </Pressable>
+    </PressableScale>
+  );
+}
+
+/** A titled horizontal row of cards — the same shape favorites, recently
+ *  viewed, and the suggested-for-today row all need. */
+function ExerciseShelf({ title, items }: { title: string; items: ExerciseListItem[] }) {
+  return (
+    <>
+      <ThemedText type="sectionTitle" style={styles.sectionLabel}>
+        {title}
+      </ThemedText>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.suggestedRow}
+        contentContainerStyle={styles.suggestedRowContent}
+      >
+        {items.map((item, index) => (
+          <SuggestedCard key={item.id} item={item} index={index} />
+        ))}
+      </ScrollView>
+    </>
   );
 }
 
@@ -221,13 +258,9 @@ function SuggestedCard({ item, index }: { item: ExerciseListItem; index: number 
   const theme = useTheme();
   return (
     <Animated.View entering={FadeInRight.delay(index * 60).duration(320)}>
-      <Pressable
+      <PressableScale
         onPress={() => router.push(`/exercise/${item.id}`)}
-        style={({ pressed }) => [
-          styles.suggestedCard,
-          { backgroundColor: theme.backgroundElement },
-          pressed && styles.pressed,
-        ]}
+        style={[styles.suggestedCard, { backgroundColor: theme.backgroundElement }]}
       >
         <Image
           source={mediaProvider.getThumbnail(item.id)}
@@ -246,7 +279,7 @@ function SuggestedCard({ item, index }: { item: ExerciseListItem; index: number 
             {t(`muscles.${item.target}`)}
           </ThemedText>
         </ThemedView>
-      </Pressable>
+      </PressableScale>
     </Animated.View>
   );
 }
@@ -287,7 +320,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaArrow: { fontSize: 22, lineHeight: 26 },
-  pressed: { opacity: 0.85 },
   sectionLabel: {
     marginHorizontal: Spacing.three,
     marginTop: Spacing.five,

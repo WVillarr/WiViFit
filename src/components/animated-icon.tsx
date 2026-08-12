@@ -1,9 +1,10 @@
-import { Image } from 'expo-image';
 import * as SplashScreen from 'expo-splash-screen';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+
+import { WivifitMark } from '@/components/wivifit-mark';
 
 const DURATION = 600;
 
@@ -32,7 +33,9 @@ export function AnimatedSplashOverlay() {
     },
   });
 
-  const image = <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />;
+  // Sized to match `imageWidth` on the expo-splash-screen plugin in app.json, so
+  // the native splash hands off to this overlay without the mark jumping.
+  const image = <WivifitMark size={76} />;
 
   return animate ? (
     <Animated.View
@@ -61,10 +64,6 @@ export function AnimatedSplashOverlay() {
 }
 
 const styles = StyleSheet.create({
-  image: {
-    width: 76,
-    height: 71,
-  },
   splashOverlay: {
     ...StyleSheet.absoluteFill,
     // Matches the native splash in app.json and Colors.dark.background, so the

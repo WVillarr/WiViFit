@@ -1,9 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
 import { useEffect, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet } from 'react-native';
+import { FlatList, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExerciseRow } from '@/components/exercise-row';
+import { ExerciseRow, exerciseRowLayout } from '@/components/exercise-row';
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -25,6 +26,9 @@ const BODY_PARTS = [
 ] as const;
 
 const LIST_COLUMNS = { id: exercises.id, name: exercises.name, target: exercises.target };
+
+/** Must stay in step with `styles.listContent` — see `exerciseRowLayout`. */
+const ROW_LAYOUT = exerciseRowLayout(Spacing.two);
 
 export default function ExploreScreen() {
   const db = useCatalogDb();
@@ -66,12 +70,17 @@ export default function ExploreScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <Pressable onPress={() => setSelectedBodyPart(null)} style={styles.backRow} hitSlop={8}>
+          <PressableScale
+            onPress={() => setSelectedBodyPart(null)}
+            style={styles.backRow}
+            scaleTo={0.94}
+            hitSlop={8}
+          >
             <ThemedText type="smallBold" style={{ color: theme.accent }}>
               {'‹ '}
               {t('explore.back')}
             </ThemedText>
-          </Pressable>
+          </PressableScale>
           <ThemedText type="subtitle" style={styles.selectedTitle}>
             {t(`bodyParts.${selectedBodyPart}`)}
           </ThemedText>
@@ -80,6 +89,14 @@ export default function ExploreScreen() {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => <ExerciseRow item={item} />}
             contentContainerStyle={styles.listContent}
+            // Rows are a fixed height, so VirtualizedList can be told exactly
+            // where each one sits instead of measuring them as they mount.
+            getItemLayout={ROW_LAYOUT}
+            windowSize={7}
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            updateCellsBatchingPeriod={50}
+            removeClippedSubviews={Platform.OS === 'android'}
             ListEmptyComponent={
               <ThemedText themeColor="textSecondary" style={styles.emptyText}>
                 {t('exercises.noResults')}
@@ -105,12 +122,11 @@ export default function ExploreScreen() {
           contentContainerStyle={styles.gridContent}
           columnWrapperStyle={styles.gridRow}
           renderItem={({ item: bodyPart }) => (
-            <Pressable
+            <PressableScale
               onPress={() => setSelectedBodyPart(bodyPart)}
-              style={({ pressed }) => [
+              style={[
                 styles.tile,
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-                pressed && styles.pressed,
               ]}
             >
               <ThemedView style={[styles.tileDot, { backgroundColor: theme.accentSoft }]}>
@@ -124,7 +140,7 @@ export default function ExploreScreen() {
                   {t('exercises.resultsCount', { count: counts[bodyPart] })}
                 </ThemedText>
               )}
-            </Pressable>
+            </PressableScale>
           )}
         />
       </SafeAreaView>
@@ -167,7 +183,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tileDotInner: { width: 12, height: 12, borderRadius: Radius.pill },
-  pressed: { opacity: 0.85 },
   backRow: {
     paddingHorizontal: Spacing.three,
     paddingTop: Platform.select({ web: Spacing.six, default: Spacing.three }),
