@@ -25,8 +25,14 @@ export function ExerciseRow({ item }: { item: ExerciseListItem }) {
     >
       <Image
         source={mediaProvider.getThumbnail(item.id)}
-        style={styles.thumbnail}
+        style={[styles.thumbnail, { backgroundColor: theme.backgroundSelected }]}
         contentFit="cover"
+        // The list recycles row views when the filter changes, and a recycled
+        // <Image> keeps the previous exercise's bitmap — or renders blank —
+        // unless the key tells it the source belongs to a different item.
+        recyclingKey={item.id}
+        transition={150}
+        cachePolicy="memory-disk"
       />
       <ThemedView style={styles.rowText}>
         <ThemedText type="smallBold" numberOfLines={2}>

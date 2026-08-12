@@ -38,6 +38,7 @@ function useGreeting() {
 
 export default function HomeScreen() {
   const db = useCatalogDb();
+  const theme = useTheme();
   const { t } = useTranslation();
 
   const greeting = useGreeting();
@@ -104,7 +105,7 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ThemedView style={styles.header}>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.greeting}>
+          <ThemedText type="eyebrow" themeColor="textSecondary">
             {greeting.toUpperCase()}
           </ThemedText>
           <ThemedText type="subtitle" style={styles.motivation}>
@@ -119,19 +120,21 @@ export default function HomeScreen() {
           >
             <GradientSurface style={styles.ctaCard}>
               <ThemedView style={styles.ctaTextGroup}>
-                <ThemedText type="subtitle" style={styles.ctaTitle}>
+                <ThemedText type="subtitle" style={{ color: theme.onAccent }}>
                   {t('home.ctaLabel')}
                 </ThemedText>
-                <ThemedText style={styles.ctaSubtitle}>{t('home.ctaHint')}</ThemedText>
+                <ThemedText style={[styles.ctaSubtitle, { color: theme.onAccent }]}>
+                  {t('home.ctaHint')}
+                </ThemedText>
               </ThemedView>
-              <ThemedView style={styles.ctaBadge}>
-                <ThemedText style={styles.ctaArrow}>→</ThemedText>
+              <ThemedView style={[styles.ctaBadge, { backgroundColor: theme.onAccentWash }]}>
+                <ThemedText style={[styles.ctaArrow, { color: theme.onAccent }]}>→</ThemedText>
               </ThemedView>
             </GradientSurface>
           </Pressable>
         </Animated.View>
 
-        <ThemedText type="smallBold" style={styles.sectionLabel}>
+        <ThemedText type="sectionTitle" style={styles.sectionLabel}>
           {t('home.quickAccessTitle')}
         </ThemedText>
         <FlatList
@@ -147,7 +150,7 @@ export default function HomeScreen() {
         />
 
         <ThemedView style={styles.sectionHeaderRow}>
-          <ThemedText type="smallBold">
+          <ThemedText type="sectionTitle">
             {activeMuscle ? t(`muscles.${activeMuscle}`) : t('home.suggestedTitle')}
           </ThemedText>
           <Pressable onPress={onShuffle} hitSlop={10}>
@@ -202,7 +205,11 @@ function MuscleChip({
         pressed && styles.pressed,
       ]}
     >
-      <ThemedText type="small" style={selected ? { color: theme.onAccent } : undefined}>
+      <ThemedText
+        type={selected ? 'smallBold' : 'small'}
+        numberOfLines={1}
+        style={{ color: selected ? theme.onAccent : theme.text }}
+      >
         {t(`muscles.${muscle}`)}
       </ThemedText>
     </Pressable>
@@ -224,8 +231,12 @@ function SuggestedCard({ item, index }: { item: ExerciseListItem; index: number 
       >
         <Image
           source={mediaProvider.getThumbnail(item.id)}
-          style={styles.suggestedThumbnail}
+          style={[styles.suggestedThumbnail, { backgroundColor: theme.backgroundSelected }]}
           contentFit="cover"
+          // Shuffling swaps the data under the recycled row — see ExerciseRow.
+          recyclingKey={item.id}
+          transition={150}
+          cachePolicy="memory-disk"
         />
         <ThemedView style={styles.suggestedMeta}>
           <ThemedText type="smallBold" numberOfLines={2} style={styles.suggestedName}>
@@ -244,12 +255,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
   header: {
-    paddingHorizontal: Spacing.three,
+    paddingLeft: Spacing.three,
+    // Keeps a long motivation line off the right edge instead of running into it.
+    paddingRight: Spacing.five,
     paddingTop: Platform.select({ web: Spacing.six, default: Spacing.three }),
-    gap: Spacing.half,
+    gap: Spacing.one,
   },
-  greeting: { letterSpacing: 1.2 },
-  motivation: { lineHeight: 38 },
+  motivation: { marginTop: Spacing.half },
   ctaWrap: {
     marginHorizontal: Spacing.three,
     marginTop: Spacing.four,
@@ -266,27 +278,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   ctaTextGroup: { backgroundColor: 'transparent', flexShrink: 1 },
-  ctaTitle: { color: '#FFFFFF', lineHeight: 38 },
-  ctaSubtitle: { color: '#FFFFFF', opacity: 0.9, marginTop: Spacing.half },
+  ctaSubtitle: { opacity: 0.85, marginTop: Spacing.half },
   ctaBadge: {
     width: 44,
     height: 44,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.22)',
   },
-  ctaArrow: { color: '#FFFFFF', fontSize: 22, lineHeight: 26 },
+  ctaArrow: { fontSize: 22, lineHeight: 26 },
   pressed: { opacity: 0.85 },
   sectionLabel: {
     marginHorizontal: Spacing.three,
     marginTop: Spacing.five,
   },
-  chipRow: { flexGrow: 0, marginTop: Spacing.two },
-  chipRowContent: { paddingHorizontal: Spacing.three, gap: Spacing.two },
+  chipRow: { flexGrow: 0, flexShrink: 0, marginTop: Spacing.two },
+  chipRowContent: { paddingHorizontal: Spacing.three, gap: Spacing.two, alignItems: 'center' },
   chip: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + 2,
+    minHeight: 38,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three + Spacing.half,
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -304,15 +315,21 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   suggestedCard: {
-    width: 156,
+    width: 160,
     borderRadius: Radius.lg,
     overflow: 'hidden',
+    // The illustrations are white-background anatomical plates. Insetting them
+    // on the card reads as a deliberate specimen tile instead of a bright
+    // rectangle bleeding into the navy.
+    padding: Spacing.one,
     ...CardShadow,
   },
-  suggestedThumbnail: { width: '100%', height: 128 },
+  suggestedThumbnail: { width: '100%', height: 124, borderRadius: Radius.md },
   suggestedMeta: {
     backgroundColor: 'transparent',
-    padding: Spacing.two,
+    paddingHorizontal: Spacing.one,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.one,
     gap: Spacing.half,
   },
   suggestedName: { lineHeight: 18 },

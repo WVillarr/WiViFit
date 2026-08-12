@@ -39,6 +39,9 @@ const MUSCLE_FILTERS = [
 
 const CARDIO_MUSCLE = 'cardiovascular_system';
 
+/** Tall enough for the 20pt line height of a chip label plus breathing room. */
+const ChipHeight = 38;
+
 type FilterMode = 'list' | 'body';
 
 // Only what ExerciseRow renders — see ExerciseListItem for why this matters.
@@ -164,26 +167,33 @@ export default function ExercisesScreen() {
               />
             )}
           />
-        ) : (
-          <ThemedView
-            type="backgroundElement"
-            style={[styles.bodyCard, { borderColor: theme.border }]}
-          >
-            <BodyMapPager selectedMuscle={selectedMuscle} onSelectMuscle={selectMuscle} />
-
-            <FilterChip
-              label={t(`muscles.${CARDIO_MUSCLE}`)}
-              selected={selectedMuscle === CARDIO_MUSCLE}
-              onPress={() => selectMuscle(CARDIO_MUSCLE)}
-            />
-          </ThemedView>
-        )}
+        ) : null}
 
         <FlatList
           data={results}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <ExerciseRow item={item} />}
+          style={styles.list}
           contentContainerStyle={styles.listContent}
+          // The plate rides along as a list header so it scrolls out of the
+          // way. Pinned above the list it kept ~400dp of the screen to itself,
+          // leaving room for barely two results.
+          ListHeaderComponent={
+            filterMode === 'body' ? (
+              <ThemedView
+                type="backgroundElement"
+                style={[styles.bodyCard, { borderColor: theme.border }]}
+              >
+                <BodyMapPager selectedMuscle={selectedMuscle} onSelectMuscle={selectMuscle} />
+
+                <FilterChip
+                  label={t(`muscles.${CARDIO_MUSCLE}`)}
+                  selected={selectedMuscle === CARDIO_MUSCLE}
+                  onPress={() => selectMuscle(CARDIO_MUSCLE)}
+                />
+              </ThemedView>
+            ) : null
+          }
           ListEmptyComponent={
             <ThemedText themeColor="textSecondary" style={styles.emptyText}>
               {t('exercises.noResults')}
@@ -217,7 +227,11 @@ function FilterChip({
         pressed && styles.pressed,
       ]}
     >
-      <ThemedText type="small" style={selected ? { color: theme.onAccent } : undefined}>
+      <ThemedText
+        type={selected ? 'smallBold' : 'small'}
+        numberOfLines={1}
+        style={{ color: selected ? theme.onAccent : theme.text }}
+      >
         {label}
       </ThemedText>
     </Pressable>
@@ -242,9 +256,11 @@ function SegmentButton({
         { backgroundColor: selected ? theme.accent : 'transparent' },
       ]}
     >
+      {/* Unlike the filter chips, this is a binary toggle — the inactive half
+          should recede rather than read as an equal option. */}
       <ThemedText
         type="smallBold"
-        style={selected ? { color: theme.onAccent } : { color: theme.textSecondary }}
+        style={{ color: selected ? theme.onAccent : theme.textSecondary }}
       >
         {label}
       </ThemedText>
@@ -279,24 +295,33 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one + 2,
     borderRadius: Radius.pill,
   },
-  chipRow: { flexGrow: 0, marginTop: Spacing.two },
-  chipRowContent: { paddingHorizontal: Spacing.three, gap: Spacing.two },
-  chip: {
+  // flexShrink: 0 keeps the row at its natural height — without it the column
+  // squeezes the chips and clips their text once the list below competes for
+  // space (most visibly with the keyboard open).
+  chipRow: { flexGrow: 0, flexShrink: 0, marginTop: Spacing.two },
+  chipRowContent: {
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + 2,
+    gap: Spacing.two,
+    alignItems: 'center',
+  },
+  chip: {
+    minHeight: ChipHeight,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three + Spacing.half,
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },
   pressed: { opacity: 0.85 },
+  // Sits inside the results list, so its horizontal insets come from
+  // `listContent` rather than its own margins.
   bodyCard: {
     alignItems: 'center',
-    marginHorizontal: Spacing.three,
-    marginTop: Spacing.two,
     paddingVertical: Spacing.three,
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.two,
   },
+  list: { flex: 1 },
   listContent: {
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,

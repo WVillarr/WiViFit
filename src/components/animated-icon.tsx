@@ -67,7 +67,9 @@ const styles = StyleSheet.create({
   },
   splashOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#208AEF',
+    // Matches the native splash in app.json and Colors.dark.background, so the
+    // handoff from native splash to this overlay is a single unbroken field.
+    backgroundColor: '#0B132B',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,

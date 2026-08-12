@@ -116,7 +116,7 @@ export default function ExploreScreen() {
               <ThemedView style={[styles.tileDot, { backgroundColor: theme.accentSoft }]}>
                 <ThemedView style={[styles.tileDotInner, { backgroundColor: theme.accent }]} />
               </ThemedView>
-              <ThemedText type="smallBold" numberOfLines={1}>
+              <ThemedText type="sectionTitle" numberOfLines={1}>
                 {t(`bodyParts.${bodyPart}`)}
               </ThemedText>
               {counts[bodyPart] != null && (

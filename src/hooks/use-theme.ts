@@ -8,7 +8,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export function useTheme() {
   const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
+  // Dark is the designed palette, so it wins when the platform has no opinion.
+  const theme = scheme === 'unspecified' ? 'dark' : scheme;
 
   return Colors[theme];
 }

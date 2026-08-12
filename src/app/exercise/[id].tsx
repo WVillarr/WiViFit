@@ -70,7 +70,7 @@ export default function ExerciseDetailScreen() {
 
         {secondaryMuscles.length > 0 && (
           <ThemedView style={styles.section}>
-            <ThemedText type="smallBold">{t('exercise.secondaryMuscles')}</ThemedText>
+            <ThemedText type="sectionTitle">{t('exercise.secondaryMuscles')}</ThemedText>
             <ThemedText themeColor="textSecondary">
               {secondaryMuscles.map((m) => t(`muscles.${m}`)).join(', ')}
             </ThemedText>
@@ -78,7 +78,7 @@ export default function ExerciseDetailScreen() {
         )}
 
         <ThemedView style={styles.section}>
-          <ThemedText type="smallBold">{t('exercise.instructions')}</ThemedText>
+          <ThemedText type="sectionTitle">{t('exercise.instructions')}</ThemedText>
           {steps.map((step, i) => (
             <View key={i} style={styles.stepRow}>
               <ThemedView style={[styles.stepBadge, { backgroundColor: theme.accentSoft }]}>
@@ -99,17 +99,22 @@ export default function ExerciseDetailScreen() {
   );
 }
 
+/** Value first, label under it — the reading order you want mid-set. */
 function MetaChip({ label, value }: { label: string; value: string }) {
   const theme = useTheme();
   return (
-    <ThemedView
-      type="backgroundElement"
-      style={[styles.metaChip, { borderColor: theme.border }]}
-    >
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
+    <ThemedView type="backgroundElement" style={[styles.metaChip, { borderColor: theme.border }]}>
+      <ThemedText type="sectionTitle" numberOfLines={2} style={styles.metaValue}>
+        {value}
       </ThemedText>
-      <ThemedText type="smallBold">{value}</ThemedText>
+      <ThemedText
+        type="eyebrow"
+        themeColor="textSecondary"
+        numberOfLines={1}
+        style={styles.metaLabel}
+      >
+        {label.toUpperCase()}
+      </ThemedText>
     </ThemedView>
   );
 }
@@ -136,16 +141,23 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   metaChip: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    flex: 1,
+    alignItems: 'center',
+    // Values run to one or two lines depending on the word; anchoring to the
+    // bottom keeps the three labels on a single baseline across the row.
+    justifyContent: 'flex-end',
+    paddingHorizontal: Spacing.one,
+    paddingVertical: Spacing.three,
     borderRadius: Radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    gap: Spacing.half,
+    gap: Spacing.one,
   },
+  metaValue: { textAlign: 'center' },
+  // Tighter than the default eyebrow so "TARGET MUSCLE" clears a third of the row.
+  metaLabel: { textAlign: 'center', fontSize: 10, letterSpacing: 0.6 },
   section: {
     gap: Spacing.two,
   },
