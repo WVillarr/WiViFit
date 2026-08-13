@@ -44,5 +44,6 @@ example
 
 # catalog pipeline
 /.cache/
-# catalog-review.csv is tracked on purpose — it's the human review queue for
-# low-confidence enrichment rows, not a build artifact.
+# catalog-review.csv and catalog-names-review.csv are tracked on purpose —
+# they're the human review queues for low-confidence enrichment rows and
+# unresolved Spanish names, not build artifacts.

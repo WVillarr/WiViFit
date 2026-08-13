@@ -14,15 +14,21 @@ import type { MovementPattern, TrackingType } from './enrichment-types';
  * instead from `media_id` by MediaProvider (see src/media/media-provider.ts)
  * since every catalog GIF path is exactly `videos/{id}-{mediaId}.gif` and
  * every row shares the same one-sentence credit line. Instructions moved to
- * exerciseInstructions below; full-text search moved to exercisesFtsName /
- * exercisesFtsProse (see catalog-client.ts — FTS5 virtual tables aren't
- * representable in the drizzle schema DSL).
+ * exerciseInstructions below — full-text search still runs over a single
+ * `exercises_fts` virtual table (see catalog-client.ts), which is fine for
+ * row-density: an FTS5 table keeps its own storage regardless of what's in
+ * `exercises`, so indexing `instructions_en/es` there was never what bloated
+ * this table; not representable in the drizzle schema DSL either way.
  */
 export const exercises = sqliteTable(
   'exercises',
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    /** Rule-translated by scripts/exercise-names-es.ts; null when a token in
+     *  the English name didn't resolve (see catalog-names-review.csv) — the
+     *  UI falls back to `name` when this is null. */
+    nameEs: text('name_es'),
     bodyPart: text('body_part').notNull(),
     equipment: text('equipment').notNull(),
     target: text('target').notNull(),
@@ -102,4 +108,4 @@ export type MuscleCountRow = typeof muscleCounts.$inferSelect;
  * render — which also keeps them well clear of the 1MB buffer expo-sqlite's
  * web backend uses to hand results back from its worker.
  */
-export type ExerciseListItem = Pick<ExerciseRow, 'id' | 'name' | 'target'>;
+export type ExerciseListItem = Pick<ExerciseRow, 'id' | 'name' | 'nameEs' | 'target'>;

@@ -13,12 +13,20 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ErrorState } from '@/components/error-state';
 import { GradientSurface } from '@/components/gradient-surface';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, CardShadow, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { exercises, ExerciseListItem, useCatalogDb, useFavorites, useRecentlyViewed } from '@/db';
+import {
+  exerciseName,
+  exercises,
+  ExerciseListItem,
+  useCatalogDb,
+  useFavorites,
+  useRecentlyViewed,
+} from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 import { mediaProvider } from '@/media';
@@ -26,7 +34,12 @@ import { mediaProvider } from '@/media';
 // A handful of common groups, enough for quick access without crowding the screen.
 const QUICK_MUSCLES = ['pectorals', 'abs', 'glutes', 'quads', 'upper_back', 'delts'] as const;
 
-const LIST_COLUMNS = { id: exercises.id, name: exercises.name, target: exercises.target };
+const LIST_COLUMNS = {
+  id: exercises.id,
+  name: exercises.name,
+  nameEs: exercises.nameEs,
+  target: exercises.target,
+};
 const SUGGESTED_COUNT = 8;
 
 function useGreeting() {
@@ -49,30 +62,45 @@ export default function HomeScreen() {
 
   const [activeMuscle, setActiveMuscle] = useState<string | null>(null);
   const [suggested, setSuggested] = useState<ExerciseListItem[]>([]);
+  const [suggestedError, setSuggestedError] = useState(false);
 
   async function fetchSuggested(muscle: string | null) {
-    const rows = await db
-      .select(LIST_COLUMNS)
-      .from(exercises)
-      .where(muscle ? eq(exercises.target, muscle) : undefined)
-      .orderBy(sql`RANDOM()`)
-      .limit(SUGGESTED_COUNT);
-    setSuggested(rows);
+    try {
+      const rows = await db
+        .select(LIST_COLUMNS)
+        .from(exercises)
+        .where(muscle ? eq(exercises.target, muscle) : undefined)
+        .orderBy(sql`RANDOM()`)
+        .limit(SUGGESTED_COUNT);
+      setSuggested(rows);
+      setSuggestedError(false);
+    } catch (err) {
+      console.error('[home] query failed', err);
+      setSuggestedError(true);
+    }
   }
 
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      const rows = await db
-        .select(LIST_COLUMNS)
-        .from(exercises)
-        .orderBy(sql`RANDOM()`)
-        .limit(SUGGESTED_COUNT);
-      if (cancelled) return;
-      setSuggested(rows);
-      setMotivationIndex(1 + Math.floor(Math.random() * 4));
+      try {
+        const rows = await db
+          .select(LIST_COLUMNS)
+          .from(exercises)
+          .orderBy(sql`RANDOM()`)
+          .limit(SUGGESTED_COUNT);
+        if (cancelled) return;
+        setSuggested(rows);
+        setMotivationIndex(1 + Math.floor(Math.random() * 4));
+        setSuggestedError(false);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[home] query failed', err);
+          setSuggestedError(true);
+        }
+      }
     }
-    run().catch((err) => console.error('[home] query failed', err));
+    run();
     return () => {
       cancelled = true;
     };
@@ -81,11 +109,11 @@ export default function HomeScreen() {
   function onChipPress(muscle: string) {
     const next = activeMuscle === muscle ? null : muscle;
     setActiveMuscle(next);
-    fetchSuggested(next).catch((err) => console.error('[home] query failed', err));
+    fetchSuggested(next);
   }
 
   function onShuffle() {
-    fetchSuggested(activeMuscle).catch((err) => console.error('[home] query failed', err));
+    fetchSuggested(activeMuscle);
   }
 
   function onTrainNow() {
@@ -117,7 +145,13 @@ export default function HomeScreen() {
         </ThemedView>
 
         <Animated.View style={pulseStyle}>
-          <PressableScale onPress={onTrainNow} scaleTo={0.98} style={styles.ctaWrap}>
+          <PressableScale
+            onPress={onTrainNow}
+            scaleTo={0.98}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('home.ctaLabel')}. ${t('home.ctaHint')}`}
+            style={styles.ctaWrap}
+          >
             <GradientSurface style={styles.ctaCard}>
               <ThemedView style={styles.ctaTextGroup}>
                 <ThemedText type="subtitle" style={{ color: theme.onAccent }}>
@@ -133,6 +167,19 @@ export default function HomeScreen() {
             </GradientSurface>
           </PressableScale>
         </Animated.View>
+
+        <PressableScale
+          onPress={() => router.push('/routine/index')}
+          scaleTo={0.98}
+          accessibilityRole="button"
+          accessibilityLabel={t('routine.listTitle')}
+          style={[styles.routinesBanner, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+        >
+          <ThemedText type="smallBold">{t('routine.listTitle')}</ThemedText>
+          <ThemedText type="small" style={{ color: theme.accent }}>
+            ›
+          </ThemedText>
+        </PressableScale>
 
         {favoriteItems.length > 0 && (
           <ExerciseShelf title={t('home.favoritesTitle')} items={favoriteItems} />
@@ -167,21 +214,31 @@ export default function HomeScreen() {
           <ThemedText type="sectionTitle">
             {activeMuscle ? t(`muscles.${activeMuscle}`) : t('home.suggestedTitle')}
           </ThemedText>
-          <PressableScale onPress={onShuffle} scaleTo={0.92} hitSlop={10}>
+          <PressableScale
+            onPress={onShuffle}
+            scaleTo={0.92}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('home.shuffle')}
+          >
             <ShuffleLabel />
           </PressableScale>
         </ThemedView>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.suggestedRow}
-          contentContainerStyle={styles.suggestedRowContent}
-        >
-          {suggested.map((item, index) => (
-            <SuggestedCard key={item.id} item={item} index={index} />
-          ))}
-        </ScrollView>
+        {suggestedError ? (
+          <ErrorState onRetry={() => fetchSuggested(activeMuscle)} />
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.suggestedRow}
+            contentContainerStyle={styles.suggestedRowContent}
+          >
+            {suggested.map((item, index) => (
+              <SuggestedCard key={item.id} item={item} index={index} />
+            ))}
+          </ScrollView>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -212,6 +269,8 @@ function MuscleChip({
     <PressableScale
       onPress={() => onPress(muscle)}
       scaleTo={0.94}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
       style={[
         styles.chip,
         {
@@ -254,12 +313,14 @@ function ExerciseShelf({ title, items }: { title: string; items: ExerciseListIte
 }
 
 function SuggestedCard({ item, index }: { item: ExerciseListItem; index: number }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const theme = useTheme();
   return (
     <Animated.View entering={FadeInRight.delay(index * 60).duration(320)}>
       <PressableScale
         onPress={() => router.push(`/exercise/${item.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={`${exerciseName(item, locale)}, ${t(`muscles.${item.target}`)}`}
         style={[styles.suggestedCard, { backgroundColor: theme.backgroundElement }]}
       >
         <Image
@@ -273,7 +334,7 @@ function SuggestedCard({ item, index }: { item: ExerciseListItem; index: number 
         />
         <ThemedView style={styles.suggestedMeta}>
           <ThemedText type="smallBold" numberOfLines={2} style={styles.suggestedName}>
-            {item.name}
+            {exerciseName(item, locale)}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
             {t(`muscles.${item.target}`)}
@@ -320,6 +381,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaArrow: { fontSize: 22, lineHeight: 26 },
+  routinesBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   sectionLabel: {
     marginHorizontal: Spacing.three,
     marginTop: Spacing.five,

@@ -1,7 +1,7 @@
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ExerciseAnatomy } from '@/components/body-map';
@@ -10,6 +10,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CardShadow, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import {
+  exerciseInstructions,
+  exerciseName,
   exerciseSecondaryMuscles,
   exercises,
   ExerciseListItem,
@@ -32,6 +34,7 @@ export default function ExerciseDetailScreen() {
   const { isFavorite, toggle } = useFavorites();
 
   const [exercise, setExercise] = useState<ExerciseRow | null>(null);
+  const [steps, setSteps] = useState<string[]>([]);
   const [secondaryMuscles, setSecondaryMuscles] = useState<string[]>([]);
   const [alternatives, setAlternatives] = useState<ExerciseListItem[]>([]);
 
@@ -39,12 +42,20 @@ export default function ExerciseDetailScreen() {
     let cancelled = false;
     async function run() {
       const [row] = await db.select().from(exercises).where(eq(exercises.id, id)).limit(1);
+      const [instructions] = await db
+        .select()
+        .from(exerciseInstructions)
+        .where(eq(exerciseInstructions.exerciseId, id))
+        .limit(1);
       const muscles = await db
         .select({ muscle: exerciseSecondaryMuscles.muscle })
         .from(exerciseSecondaryMuscles)
         .where(eq(exerciseSecondaryMuscles.exerciseId, id));
       if (!cancelled) {
         setExercise(row ?? null);
+        setSteps(
+          instructions ? JSON.parse(locale === 'es' ? instructions.stepsEs : instructions.stepsEn) : [],
+        );
         setSecondaryMuscles(muscles.map((m) => m.muscle));
       }
     }
@@ -52,7 +63,7 @@ export default function ExerciseDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, id]);
+  }, [db, id, locale]);
 
   // One write per visit, not per render — keyed on `id` rather than the
   // fetched `exercise` so revisiting the same screen with a new id (the
@@ -67,7 +78,7 @@ export default function ExerciseDetailScreen() {
   useEffect(() => {
     if (!exercise) return;
     let cancelled = false;
-    db.select({ id: exercises.id, name: exercises.name, target: exercises.target })
+    db.select({ id: exercises.id, name: exercises.name, nameEs: exercises.nameEs, target: exercises.target })
       .from(exercises)
       .where(
         and(
@@ -87,14 +98,6 @@ export default function ExerciseDetailScreen() {
     };
   }, [db, exercise]);
 
-  const steps = useMemo<string[]>(
-    () =>
-      exercise
-        ? JSON.parse(locale === 'es' ? exercise.instructionStepsEs : exercise.instructionStepsEn)
-        : [],
-    [exercise, locale],
-  );
-
   // The row that pushed this screen has already started animating, so returning
   // nothing would slide an empty card in and pop the content on afterwards.
   // Blocking out the same shapes keeps the transition landing on a page.
@@ -105,7 +108,7 @@ export default function ExerciseDetailScreen() {
       <ThemedView style={styles.content}>
         <View>
           <Image
-            source={{ uri: mediaProvider.getGifUri(exercise.gifPath) }}
+            source={{ uri: mediaProvider.getGifUri(exercise.id, exercise.mediaId) }}
             // The bundled thumbnail as placeholder, not a blank tile: the GIF
             // is hot-linked (see MediaProvider) and won't load offline the
             // first time a card is opened, but the thumbnail always will.
@@ -134,7 +137,7 @@ export default function ExerciseDetailScreen() {
         </View>
 
         <ThemedText type="subtitle" style={styles.title}>
-          {exercise.name}
+          {exerciseName(exercise, locale)}
         </ThemedText>
 
         <View style={styles.metaRow}>
@@ -192,7 +195,7 @@ export default function ExerciseDetailScreen() {
         )}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.attribution}>
-          {t('exercise.attributionPrefix')} {exercise.attribution}
+          {t('exercise.attributionPrefix')} {mediaProvider.attribution}
         </ThemedText>
       </ThemedView>
     </ScrollView>
@@ -224,10 +227,12 @@ function DetailSkeleton() {
  *  a back stack the user has to unwind one card at a time. */
 function AlternativeCard({ item }: { item: ExerciseListItem }) {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   return (
     <PressableScale
       onPress={() => router.replace(`/exercise/${item.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`${exerciseName(item, locale)}, ${t(`muscles.${item.target}`)}`}
       style={[styles.altCard, { backgroundColor: theme.backgroundElement }]}
     >
       <Image
@@ -240,7 +245,7 @@ function AlternativeCard({ item }: { item: ExerciseListItem }) {
       />
       <ThemedView style={styles.altMeta}>
         <ThemedText type="smallBold" numberOfLines={2} style={styles.altName}>
-          {item.name}
+          {exerciseName(item, locale)}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
           {t(`muscles.${item.target}`)}

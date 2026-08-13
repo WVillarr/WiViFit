@@ -15,6 +15,7 @@ import { enableFreeze } from 'react-native-screens';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors, FontFamily, type Palette } from '@/constants/theme';
 import { CATALOG_DB_NAME } from '@/db';
+import { useSyncOnReconnect } from '@/sync';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -47,6 +48,17 @@ function navigationTheme(base: typeof DefaultTheme, palette: Palette) {
 const LightNavigationTheme = navigationTheme(DefaultTheme, Colors.light);
 const DarkNavigationTheme = navigationTheme(DarkTheme, Colors.dark);
 
+/**
+ * Mounted once here rather than called directly in RootLayout: the hook
+ * needs `useUserDb()`, which only resolves once `user.db` has opened, and
+ * keeping it in its own leaf component means that resolution can't be
+ * blamed for a re-render anywhere else in the tree.
+ */
+function SyncBootstrap() {
+  useSyncOnReconnect();
+  return null;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [fontsLoaded] = useFonts({
@@ -68,6 +80,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={isDark ? DarkNavigationTheme : LightNavigationTheme}>
       <SQLiteProvider databaseName={CATALOG_DB_NAME} assetSource={{ assetId: catalogDbAsset }}>
+        <SyncBootstrap />
         <AnimatedSplashOverlay />
         <Stack
           screenOptions={{
@@ -79,6 +92,11 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="exercise/[id]" options={{ title: '' }} />
+          <Stack.Screen name="routine/index" options={{ title: '' }} />
+          <Stack.Screen name="routine/new" options={{ title: '' }} />
+          <Stack.Screen name="routine/[id]" options={{ title: '' }} />
+          <Stack.Screen name="routine/pick-exercise" options={{ title: '', presentation: 'modal' }} />
+          <Stack.Screen name="workout/[sessionId]" options={{ title: '', gestureEnabled: false }} />
         </Stack>
       </SQLiteProvider>
     </ThemeProvider>

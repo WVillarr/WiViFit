@@ -1,12 +1,12 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { PixelRatio, StyleSheet } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
-import { ExerciseListItem } from '@/db';
+import { exerciseName, ExerciseListItem } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 import { mediaProvider } from '@/media';
@@ -16,10 +16,19 @@ import { mediaProvider } from '@/media';
  * second line. Uniform rows are what let a list hand VirtualizedList exact
  * offsets instead of measuring each cell — see `exerciseRowLayout`.
  *
- * 78 = the tallest content (two 20pt name lines + 2 gap + a 20pt subtitle)
- * plus `Spacing.two` of padding top and bottom.
+ * 62 = the tallest content at the OS default font scale (two 20pt name lines
+ * + 2 gap + a 20pt subtitle). Text scales with the system's accessibility
+ * font size (RN's default `allowFontScaling`), so a fixed 78 clipped the
+ * second name line under a large-text setting; scaling this by the same
+ * factor keeps the row exactly as tall as the text it holds. The vertical
+ * padding (`Spacing.two` top and bottom) doesn't scale — it's layout
+ * breathing room, not text.
  */
-export const EXERCISE_ROW_HEIGHT = 78;
+const BASE_CONTENT_HEIGHT = 62;
+const ROW_VERTICAL_PADDING = Spacing.two * 2;
+export const EXERCISE_ROW_HEIGHT = Math.round(
+  BASE_CONTENT_HEIGHT * Math.max(1, PixelRatio.getFontScale()) + ROW_VERTICAL_PADDING,
+);
 
 /** The vertical gap a list must put between rows for `exerciseRowLayout` to hold. */
 export const EXERCISE_ROW_GAP = Spacing.two;
@@ -42,13 +51,24 @@ export function exerciseRowLayout(paddingTop: number) {
   });
 }
 
-export function ExerciseRow({ item }: { item: ExerciseListItem }) {
-  const { t } = useTranslation();
+export function ExerciseRow({
+  item,
+  onPress,
+}: {
+  item: ExerciseListItem;
+  /** Defaults to pushing the detail screen — the routine-builder's picker
+   *  (routine/pick-exercise.tsx) overrides this to add the exercise instead. */
+  onPress?: () => void;
+}) {
+  const { t, locale } = useTranslation();
   const theme = useTheme();
 
+  const name = exerciseName(item, locale);
   return (
     <PressableScale
-      onPress={() => router.push(`/exercise/${item.id}`)}
+      onPress={onPress ?? (() => router.push(`/exercise/${item.id}`))}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${t(`muscles.${item.target}`)}`}
       style={[
         styles.row,
         { backgroundColor: theme.backgroundElement, borderColor: theme.border },
@@ -67,7 +87,7 @@ export function ExerciseRow({ item }: { item: ExerciseListItem }) {
       />
       <ThemedView style={styles.rowText}>
         <ThemedText type="smallBold" numberOfLines={2}>
-          {item.name}
+          {name}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {t(`muscles.${item.target}`)}

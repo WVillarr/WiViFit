@@ -1,6 +1,8 @@
 {
   "common": {
-    "welcome": "Bienvenido"
+    "welcome": "Bienvenido",
+    "errorMessage": "Algo salió mal. Intenta de nuevo.",
+    "retry": "Reintentar"
   },
   "tabs": {
     "exercises": "Ejercicios",
@@ -161,5 +163,47 @@
     "upper_arms": "Brazos",
     "upper_legs": "Piernas (parte alta)",
     "waist": "Cintura"
+  },
+  "routine": {
+    "listTitle": "Mis rutinas",
+    "newButton": "+ Nueva",
+    "empty": "Todavía no tienes rutinas. Crea la primera.",
+    "daysPerWeek": "{{count}} días por semana",
+    "newTitle": "Nueva rutina",
+    "namePlaceholder": "Nombre de la rutina",
+    "dayDefaultName": "Día {{count}}",
+    "addDay": "+ Añadir día",
+    "removeDay": "Quitar día",
+    "addExercise": "+ Añadir ejercicio",
+    "removeExercise": "Quitar ejercicio",
+    "sets": "Series",
+    "repsMin": "Reps mín.",
+    "repsMax": "Reps máx.",
+    "durationSeconds": "Duración (s)",
+    "restSeconds": "Descanso (s)",
+    "save": "Guardar rutina",
+    "saving": "Guardando…",
+    "pickExerciseTitle": "Elegir ejercicio",
+    "startWorkout": "Empezar entrenamiento",
+    "noExercisesYet": "Agrega al menos un ejercicio para poder guardar."
+  },
+  "workout": {
+    "restLabel": "Descanso",
+    "skipRest": "Saltar",
+    "sameAsLastTime": "Igual que la vez pasada",
+    "finish": "Terminar entrenamiento",
+    "finishConfirmTitle": "¿Terminar el entrenamiento?",
+    "finishConfirmBody": "Se guardará tu progreso hasta ahora.",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "summaryTitle": "¡Buen entrenamiento!",
+    "summaryVolume": "Volumen total",
+    "summaryNewRecords": "Récords nuevos",
+    "summaryDone": "Listo",
+    "setNumber": "Serie {{count}}",
+    "weightKg": "Peso (kg)",
+    "reps": "Reps",
+    "logSet": "Registrar serie",
+    "newPersonalRecord": "¡Nuevo récord personal!"
   }
 }

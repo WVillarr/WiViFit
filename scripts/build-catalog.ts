@@ -27,13 +27,17 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import path from 'node:path';
 
 import { MOVEMENT_PATTERNS, TRACKING_TYPES } from '@/db/enrichment-types';
+import { secondaryPlateTargets } from '@/db/secondary-muscles';
 
 import { loadDataset, REPO_ROOT } from './dataset';
 import { deriveFrom, enrichExercise } from './enrichment';
+import { translateExerciseName } from './exercise-names-es';
 
 const OUT_DB_PATH = path.join(REPO_ROOT, 'assets', 'catalog.db');
 const OVERRIDES_PATH = path.join(REPO_ROOT, 'data', 'overrides.json');
+const NAME_OVERRIDES_PATH = path.join(REPO_ROOT, 'data', 'name-overrides.json');
 const REVIEW_CSV_PATH = path.join(REPO_ROOT, 'catalog-review.csv');
+const NAMES_REVIEW_CSV_PATH = path.join(REPO_ROOT, 'catalog-names-review.csv');
 const CONFIDENCE_THRESHOLD = 0.7;
 
 interface OverrideEntry {
@@ -108,6 +112,28 @@ function loadOverrides(datasetIds: ReadonlySet<string>): Record<string, Override
   return raw as Record<string, OverrideEntry>;
 }
 
+/**
+ * Corrections for names scripts/exercise-names-es.ts couldn't fully resolve
+ * (see catalog-names-review.csv) — same re-runnable shape as loadOverrides
+ * above: keyed by exercise id, applied after the rule pass, never hand-edited
+ * output.
+ */
+function loadNameOverrides(datasetIds: ReadonlySet<string>): Record<string, string> {
+  if (!existsSync(NAME_OVERRIDES_PATH)) return {};
+  const raw = JSON.parse(readFileSync(NAME_OVERRIDES_PATH, 'utf-8')) as Record<string, unknown>;
+
+  for (const [id, value] of Object.entries(raw)) {
+    if (!datasetIds.has(id)) {
+      throw new Error(`data/name-overrides.json: "${id}" is not an exercise id in the dataset`);
+    }
+    if (typeof value !== 'string' || value.trim() === '') {
+      throw new Error(`data/name-overrides.json: "${id}" must be a non-empty string`);
+    }
+  }
+
+  return raw as Record<string, string>;
+}
+
 function slugify(value: string): string {
   return value
     .trim()
@@ -129,29 +155,24 @@ async function main() {
     process.exit(1);
   }
 
-  const overrides = loadOverrides(new Set(rawExercises.map((r) => r.id)));
+  const datasetIds = new Set(rawExercises.map((r) => r.id));
+  const overrides = loadOverrides(datasetIds);
+  const nameOverrides = loadNameOverrides(datasetIds);
 
   const seenIds = new Set<string>();
   const reviewRows: string[] = [
     'id,name,target,equipment,movement_pattern,tracking_type,confidence,overridden',
   ];
+  const nameReviewRows: string[] = ['id,name,unresolved_tokens'];
 
   interface BuiltExercise {
     id: string;
     name: string;
+    nameEs: string | null;
     bodyPart: string;
     equipment: string;
     target: string;
-    muscleGroup: string;
-    instructionsEn: string;
-    instructionsEs: string;
-    instructionStepsEn: string;
-    instructionStepsEs: string;
     mediaId: string;
-    imagePath: string;
-    gifPath: string;
-    attribution: string;
-    createdAt: string;
     movementPattern: string;
     compound: 0 | 1;
     difficulty: number;
@@ -159,6 +180,12 @@ async function main() {
     avgSecondsPerRep: number | null;
     enrichmentConfidence: number;
     secondaryMuscles: string[];
+    // Not stored on the `exercises` row (see catalog-schema.ts) — read off
+    // into exercise_instructions and exercises_fts below instead.
+    instructionsEn: string;
+    instructionsEs: string;
+    instructionStepsEn: string;
+    instructionStepsEs: string;
   }
 
   const built: BuiltExercise[] = rawExercises.map((raw) => {
@@ -210,22 +237,24 @@ async function main() {
       );
     }
 
+    const translation = translateExerciseName(raw.name);
+    let nameEs = translation.nameEs ?? nameOverrides[raw.id] ?? null;
+    if (nameEs === null) {
+      nameReviewRows.push(
+        [raw.id, raw.name, translation.unresolved.join(' ')]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(','),
+      );
+    }
+
     return {
       id: raw.id,
       name: raw.name,
+      nameEs,
       bodyPart: slugify(raw.body_part),
       equipment: equipmentSlug,
       target: slugify(raw.target),
-      muscleGroup: slugify(raw.muscle_group),
-      instructionsEn: raw.instructions.en,
-      instructionsEs: raw.instructions.es,
-      instructionStepsEn: JSON.stringify(raw.instruction_steps.en),
-      instructionStepsEs: JSON.stringify(raw.instruction_steps.es),
       mediaId: raw.media_id,
-      imagePath: raw.image,
-      gifPath: raw.gif_url,
-      attribution: raw.attribution,
-      createdAt: raw.created_at,
       movementPattern: effectivePattern,
       compound: ((override.compound as boolean) ?? derived.compound) ? 1 : 0,
       difficulty: (override.difficulty as number) ?? derived.difficulty,
@@ -234,6 +263,10 @@ async function main() {
         override.avgSecondsPerRep !== undefined ? override.avgSecondsPerRep : derived.avgSecondsPerRep,
       enrichmentConfidence: confidence,
       secondaryMuscles: raw.secondary_muscles.map(slugify),
+      instructionsEn: raw.instructions.en,
+      instructionsEs: raw.instructions.es,
+      instructionStepsEn: JSON.stringify(raw.instruction_steps.en),
+      instructionStepsEs: JSON.stringify(raw.instruction_steps.es),
     };
   });
 
@@ -242,6 +275,12 @@ async function main() {
   console.log(
     `Wrote ${REVIEW_CSV_PATH} (${reviewRows.length - 1} rows below confidence ${CONFIDENCE_THRESHOLD}, ` +
       `${overriddenCount} already have an override)`,
+  );
+
+  writeFileSync(NAMES_REVIEW_CSV_PATH, nameReviewRows.join('\n') + '\n', 'utf-8');
+  console.log(
+    `Wrote ${NAMES_REVIEW_CSV_PATH} (${nameReviewRows.length - 1} names unresolved, ` +
+      `${Object.keys(nameOverrides).length} already have an override)`,
   );
 
   mkdirSync(path.dirname(OUT_DB_PATH), { recursive: true });
@@ -259,19 +298,11 @@ async function main() {
     CREATE TABLE exercises (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      name_es TEXT,
       body_part TEXT NOT NULL,
       equipment TEXT NOT NULL,
       target TEXT NOT NULL,
-      muscle_group TEXT NOT NULL,
-      instructions_en TEXT NOT NULL,
-      instructions_es TEXT NOT NULL,
-      instruction_steps_en TEXT NOT NULL,
-      instruction_steps_es TEXT NOT NULL,
       media_id TEXT NOT NULL,
-      image_path TEXT NOT NULL,
-      gif_path TEXT NOT NULL,
-      attribution TEXT NOT NULL,
-      created_at TEXT NOT NULL,
       movement_pattern TEXT NOT NULL,
       compound INTEGER NOT NULL,
       difficulty INTEGER NOT NULL,
@@ -279,19 +310,31 @@ async function main() {
       avg_seconds_per_rep REAL,
       enrichment_confidence REAL NOT NULL
     );
-    CREATE INDEX exercises_target_idx ON exercises(target);
-    CREATE INDEX exercises_body_part_idx ON exercises(body_part);
+    -- No index on target/bodyPart — see the comment on the drizzle table in
+    -- src/db/catalog-schema.ts for why a full scan is fine at this size.
+
+    CREATE TABLE exercise_instructions (
+      exercise_id TEXT PRIMARY KEY REFERENCES exercises(id),
+      steps_en TEXT NOT NULL,
+      steps_es TEXT NOT NULL
+    );
 
     CREATE TABLE exercise_secondary_muscles (
       exercise_id TEXT NOT NULL REFERENCES exercises(id),
       muscle TEXT NOT NULL,
       PRIMARY KEY (exercise_id, muscle)
     );
-    CREATE INDEX exercise_secondary_muscles_muscle_idx ON exercise_secondary_muscles(muscle);
+
+    CREATE TABLE muscle_counts (
+      target TEXT PRIMARY KEY,
+      primary_count INTEGER NOT NULL,
+      inclusive_count INTEGER NOT NULL
+    );
 
     CREATE VIRTUAL TABLE exercises_fts USING fts5(
       id UNINDEXED,
       name,
+      name_es,
       instructions_en,
       instructions_es,
       target,
@@ -301,38 +344,61 @@ async function main() {
 
   const insertExercise = db.prepare(`
     INSERT INTO exercises (
-      id, name, body_part, equipment, target, muscle_group,
-      instructions_en, instructions_es, instruction_steps_en, instruction_steps_es,
-      media_id, image_path, gif_path, attribution, created_at,
+      id, name, name_es, body_part, equipment, target, media_id,
       movement_pattern, compound, difficulty, tracking_type, avg_seconds_per_rep, enrichment_confidence
     ) VALUES (
-      @id, @name, @bodyPart, @equipment, @target, @muscleGroup,
-      @instructionsEn, @instructionsEs, @instructionStepsEn, @instructionStepsEs,
-      @mediaId, @imagePath, @gifPath, @attribution, @createdAt,
+      @id, @name, @nameEs, @bodyPart, @equipment, @target, @mediaId,
       @movementPattern, @compound, @difficulty, @trackingType, @avgSecondsPerRep, @enrichmentConfidence
     )
   `);
+  const insertInstructions = db.prepare(
+    `INSERT INTO exercise_instructions (exercise_id, steps_en, steps_es) VALUES (?, ?, ?)`,
+  );
   const insertSecondaryMuscle = db.prepare(
     `INSERT INTO exercise_secondary_muscles (exercise_id, muscle) VALUES (?, ?)`,
   );
+  const insertMuscleCount = db.prepare(
+    `INSERT INTO muscle_counts (target, primary_count, inclusive_count) VALUES (?, ?, ?)`,
+  );
   const insertFts = db.prepare(
-    `INSERT INTO exercises_fts (id, name, instructions_en, instructions_es, target, equipment) VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO exercises_fts (id, name, name_es, instructions_en, instructions_es, target, equipment) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
 
   const insertAll = db.transaction((rows: BuiltExercise[]) => {
     for (const row of rows) {
       insertExercise.run(row);
+      insertInstructions.run(row.id, row.instructionStepsEn, row.instructionStepsEs);
       for (const muscle of new Set(row.secondaryMuscles)) {
         insertSecondaryMuscle.run(row.id, muscle);
       }
       insertFts.run(
         row.id,
         row.name,
+        row.nameEs,
         row.instructionsEn,
         row.instructionsEs,
         row.target,
         row.equipment,
       );
+    }
+
+    // One row per target (see muscle_counts's doc comment in
+    // catalog-schema.ts): primaryCount is exercises targeting it directly,
+    // inclusiveCount adds exercises where it only shows up as a secondary
+    // muscle, via the same mapping the body map's caption uses.
+    const targets = new Set(rows.map((r) => r.target));
+    for (const target of targets) {
+      let primaryCount = 0;
+      let inclusiveCount = 0;
+      for (const row of rows) {
+        if (row.target === target) {
+          primaryCount++;
+          inclusiveCount++;
+        } else if (secondaryPlateTargets(row.secondaryMuscles).includes(target)) {
+          inclusiveCount++;
+        }
+      }
+      insertMuscleCount.run(target, primaryCount, inclusiveCount);
     }
   });
   insertAll(built);

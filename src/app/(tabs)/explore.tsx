@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ErrorState } from '@/components/error-state';
 import { ExerciseRow, exerciseRowLayout } from '@/components/exercise-row';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
@@ -25,7 +26,12 @@ const BODY_PARTS = [
   'waist',
 ] as const;
 
-const LIST_COLUMNS = { id: exercises.id, name: exercises.name, target: exercises.target };
+const LIST_COLUMNS = {
+  id: exercises.id,
+  name: exercises.name,
+  nameEs: exercises.nameEs,
+  target: exercises.target,
+};
 
 /** Must stay in step with `styles.listContent` — see `exerciseRowLayout`. */
 const ROW_LAYOUT = exerciseRowLayout(Spacing.two);
@@ -38,6 +44,8 @@ export default function ExploreScreen() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [selectedBodyPart, setSelectedBodyPart] = useState<string | null>(null);
   const [results, setResults] = useState<ExerciseListItem[]>([]);
+  const [resultsError, setResultsError] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     db.select({ bodyPart: exercises.bodyPart, count: sql<number>`count(*)` })
@@ -58,13 +66,19 @@ export default function ExploreScreen() {
       .orderBy(exercises.name)
       .limit(200)
       .then((rows) => {
-        if (!cancelled) setResults(rows);
+        if (!cancelled) {
+          setResults(rows);
+          setResultsError(false);
+        }
       })
-      .catch((err) => console.error('[explore] query failed', err));
+      .catch((err) => {
+        console.error('[explore] query failed', err);
+        if (!cancelled) setResultsError(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [db, selectedBodyPart]);
+  }, [db, selectedBodyPart, retryToken]);
 
   if (selectedBodyPart) {
     return (
@@ -75,6 +89,8 @@ export default function ExploreScreen() {
             style={styles.backRow}
             scaleTo={0.94}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('explore.back')}
           >
             <ThemedText type="smallBold" style={{ color: theme.accent }}>
               {'‹ '}
@@ -98,9 +114,13 @@ export default function ExploreScreen() {
             updateCellsBatchingPeriod={50}
             removeClippedSubviews={Platform.OS === 'android'}
             ListEmptyComponent={
-              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-                {t('exercises.noResults')}
-              </ThemedText>
+              resultsError ? (
+                <ErrorState onRetry={() => setRetryToken((n) => n + 1)} />
+              ) : (
+                <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                  {t('exercises.noResults')}
+                </ThemedText>
+              )
             }
           />
         </SafeAreaView>
@@ -124,6 +144,12 @@ export default function ExploreScreen() {
           renderItem={({ item: bodyPart }) => (
             <PressableScale
               onPress={() => setSelectedBodyPart(bodyPart)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                counts[bodyPart] != null
+                  ? `${t(`bodyParts.${bodyPart}`)}, ${t('exercises.resultsCount', { count: counts[bodyPart] })}`
+                  : t(`bodyParts.${bodyPart}`)
+              }
               style={[
                 styles.tile,
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },

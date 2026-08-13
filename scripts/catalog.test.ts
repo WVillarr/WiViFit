@@ -46,6 +46,30 @@ describeIfBuilt('catalog.db', () => {
     expect(bad.c).toBe(0);
   });
 
+  test('every exercise has instructions in both locales', () => {
+    const bad = db
+      .prepare(
+        `SELECT COUNT(*) c FROM exercises e
+         LEFT JOIN exercise_instructions i ON i.exercise_id = e.id
+         WHERE i.exercise_id IS NULL OR i.steps_en IS NULL OR i.steps_es IS NULL`,
+      )
+      .get() as { c: number };
+    expect(bad.c).toBe(0);
+  });
+
+  test('muscle_counts has one row per target and every inclusive count is at least the primary one', () => {
+    const targets = db.prepare('SELECT COUNT(DISTINCT target) c FROM exercises').get() as {
+      c: number;
+    };
+    const rows = db.prepare('SELECT COUNT(*) c FROM muscle_counts').get() as { c: number };
+    expect(rows.c).toBe(targets.c);
+
+    const bad = db
+      .prepare('SELECT COUNT(*) c FROM muscle_counts WHERE inclusive_count < primary_count')
+      .get() as { c: number };
+    expect(bad.c).toBe(0);
+  });
+
   test('FTS5 ranks a full exercise name above incidental matches', () => {
     const rows = db
       .prepare(

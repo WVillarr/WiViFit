@@ -1,6 +1,8 @@
 {
   "common": {
-    "welcome": "Welcome"
+    "welcome": "Welcome",
+    "errorMessage": "Something went wrong. Try again.",
+    "retry": "Retry"
   },
   "tabs": {
     "exercises": "Exercises",
@@ -161,5 +163,47 @@
     "upper_arms": "Upper arms",
     "upper_legs": "Upper legs",
     "waist": "Waist"
+  },
+  "routine": {
+    "listTitle": "My routines",
+    "newButton": "+ New",
+    "empty": "No routines yet. Create your first one.",
+    "daysPerWeek": "{{count}} days a week",
+    "newTitle": "New routine",
+    "namePlaceholder": "Routine name",
+    "dayDefaultName": "Day {{count}}",
+    "addDay": "+ Add day",
+    "removeDay": "Remove day",
+    "addExercise": "+ Add exercise",
+    "removeExercise": "Remove exercise",
+    "sets": "Sets",
+    "repsMin": "Min reps",
+    "repsMax": "Max reps",
+    "durationSeconds": "Duration (s)",
+    "restSeconds": "Rest (s)",
+    "save": "Save routine",
+    "saving": "Saving…",
+    "pickExerciseTitle": "Pick an exercise",
+    "startWorkout": "Start workout",
+    "noExercisesYet": "Add at least one exercise before saving."
+  },
+  "workout": {
+    "restLabel": "Rest",
+    "skipRest": "Skip",
+    "sameAsLastTime": "Same as last time",
+    "finish": "Finish workout",
+    "finishConfirmTitle": "Finish this workout?",
+    "finishConfirmBody": "Your progress so far will be saved.",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "summaryTitle": "Nice work!",
+    "summaryVolume": "Total volume",
+    "summaryNewRecords": "New records",
+    "summaryDone": "Done",
+    "setNumber": "Set {{count}}",
+    "weightKg": "Weight (kg)",
+    "reps": "Reps",
+    "logSet": "Log set",
+    "newPersonalRecord": "New personal record!"
   }
 }

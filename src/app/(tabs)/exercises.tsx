@@ -4,6 +4,7 @@ import { FlatList, Platform, ScrollView, StyleSheet, TextInput } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyMapPicker } from '@/components/body-map';
+import { ErrorState } from '@/components/error-state';
 import { ExerciseRow } from '@/components/exercise-row';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
@@ -59,6 +60,7 @@ type FilterMode = 'list' | 'body';
 const LIST_COLUMNS = {
   id: exercises.id,
   name: exercises.name,
+  nameEs: exercises.nameEs,
   target: exercises.target,
   mediaId: exercises.mediaId,
 };
@@ -91,6 +93,8 @@ export default function ExercisesScreen() {
   // setup is bodyweight *and* dumbbells *and* a band. Empty means no filter.
   const [equipmentGroups, setEquipmentGroups] = useState<EquipmentGroup[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
+  const [resultsError, setResultsError] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
   const { onViewableItemsChanged } = useGifPrefetch<ResultRow>((item) => item.mediaId);
   const [muscleCounts, setMuscleCounts] = useState<Record<string, number>>({});
   const debouncedSearch = useDebouncedValue(searchText, 150);
@@ -157,16 +161,20 @@ export default function ExercisesScreen() {
           .limit(200);
       }
 
-      if (!cancelled) setResults(rows);
+      if (!cancelled) {
+        setResults(rows);
+        setResultsError(false);
+      }
     }
 
     run().catch((err) => {
       console.error('[exercises] query failed', err);
+      if (!cancelled) setResultsError(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [db, debouncedSearch, effectiveMuscle, synonymMuscle, equipmentWhere]);
+  }, [db, debouncedSearch, effectiveMuscle, synonymMuscle, equipmentWhere, retryToken]);
 
   function selectMuscle(muscle: string) {
     setSelectedMuscle((current) => (current === muscle ? null : muscle));
@@ -300,9 +308,13 @@ export default function ExercisesScreen() {
             ) : null
           }
           ListEmptyComponent={
-            <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-              {t('exercises.noResults')}
-            </ThemedText>
+            resultsError ? (
+              <ErrorState onRetry={() => setRetryToken((n) => n + 1)} />
+            ) : (
+              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                {t('exercises.noResults')}
+              </ThemedText>
+            )
           }
         />
       </SafeAreaView>
@@ -324,6 +336,8 @@ function FilterChip({
     <PressableScale
       onPress={onPress}
       scaleTo={0.94}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
       style={[
         styles.chip,
         {
@@ -357,6 +371,8 @@ function SegmentButton({
     <PressableScale
       onPress={onPress}
       scaleTo={0.96}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
       style={[styles.segmentButton, { backgroundColor: selected ? theme.accent : 'transparent' }]}
     >
       {/* Unlike the filter chips, this is a binary toggle — the inactive half

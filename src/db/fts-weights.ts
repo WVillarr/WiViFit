@@ -10,7 +10,12 @@
  * with 1.0 and every weight silently applies to the column before the intended
  * one.
  *
- *   id   name  instructions_en  instructions_es  target  equipment
+ *   id   name  name_es  instructions_en  instructions_es  target  equipment
+ *
+ * `name` and `name_es` both get the high weight — a Spanish query should win
+ * on the translated name exactly as readily as an English one wins on the
+ * original, and a name that failed translation (see nameEs in
+ * catalog-schema.ts) still has the English column to match against.
  *
  * Note that these weights only decide how much each column contributes — they
  * cannot undo bm25's length normalisation, which measures the whole row. With
@@ -20,4 +25,4 @@
  * `name` is weighted at. Fixing that means indexing names apart from prose, not
  * tuning these numbers.
  */
-export const FTS_BM25_WEIGHTS = '1.0, 10.0, 1.0, 1.0, 2.0, 1.0';
+export const FTS_BM25_WEIGHTS = '1.0, 10.0, 10.0, 1.0, 1.0, 2.0, 1.0';

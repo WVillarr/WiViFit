@@ -13,7 +13,7 @@ import { FTS_BM25_WEIGHTS } from './fts-weights';
  * imported by a previous install. Versioning the name forces the new catalog
  * to be imported. User data is unaffected — it lives in user.db.
  */
-export const CATALOG_DB_VERSION = 2;
+export const CATALOG_DB_VERSION = 3;
 export const CATALOG_DB_NAME = `catalog-v${CATALOG_DB_VERSION}.db`;
 
 /**

@@ -4,14 +4,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { useCatalogDb } from './catalog-client';
 import { exercises, ExerciseListItem } from './catalog-schema';
 import { favorites, recentlyViewed } from './user-schema';
-import { useUserDb } from './user-client';
+import { UserDb, useUserDb } from './user-client';
 
 /** Recently viewed keeps this many rows; older ones are pruned on insert. */
 const RECENT_LIMIT = 20;
 /** Shown on Home — a short shelf, not a full history. */
 const HOME_ROW_LIMIT = 10;
 
-const LIST_COLUMNS = { id: exercises.id, name: exercises.name, target: exercises.target };
+const LIST_COLUMNS = {
+  id: exercises.id,
+  name: exercises.name,
+  nameEs: exercises.nameEs,
+  target: exercises.target,
+};
 
 /**
  * user.db only knows exercise ids; the name/target shown in a row lives in
@@ -39,6 +44,7 @@ export function useFavorites() {
   const [items, setItems] = useState<ExerciseListItem[]>([]);
 
   const reload = useCallback(() => {
+    if (!userDb) return;
     userDb
       .select({ exerciseId: favorites.exerciseId })
       .from(favorites)
@@ -55,6 +61,7 @@ export function useFavorites() {
 
   const toggle = useCallback(
     (exerciseId: string) => {
+      if (!userDb) return;
       const isFavorite = ids.has(exerciseId);
       const query = isFavorite
         ? userDb.delete(favorites).where(eq(favorites.exerciseId, exerciseId))
@@ -74,6 +81,7 @@ export function useRecentlyViewed() {
   const [items, setItems] = useState<ExerciseListItem[]>([]);
 
   useEffect(() => {
+    if (!userDb) return;
     userDb
       .select({ exerciseId: recentlyViewed.exerciseId })
       .from(recentlyViewed)
@@ -88,9 +96,12 @@ export function useRecentlyViewed() {
 
 /**
  * Upserts the view and prunes down to RECENT_LIMIT. Call once per detail
- * screen visit — not from a render path, since every call writes.
+ * screen visit — not from a render path, since every call writes. A no-op
+ * while `userDb` is still opening; the caller re-runs this on every render
+ * anyway (see exercise/[id].tsx), so the write lands once it resolves.
  */
-export function recordView(userDb: ReturnType<typeof useUserDb>, exerciseId: string) {
+export function recordView(userDb: UserDb | null, exerciseId: string) {
+  if (!userDb) return;
   userDb
     .insert(recentlyViewed)
     .values({ exerciseId, viewedAt: new Date().toISOString() })
