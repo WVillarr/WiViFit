@@ -11,7 +11,8 @@ export const devMediaProvider: MediaProvider = {
   getThumbnail(exerciseId: string) {
     return thumbnailsMap[exerciseId] ?? FALLBACK_THUMBNAIL;
   },
-  getGifUri(gifPath: string) {
-    return `${GIF_BASE}/${gifPath}`;
+  getGifUri(exerciseId: string, mediaId: string) {
+    return `${GIF_BASE}/videos/${exerciseId}-${mediaId}.gif`;
   },
+  attribution: '© Gym visual — https://gymvisual.com/',
 };

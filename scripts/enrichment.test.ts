@@ -1,4 +1,4 @@
-import { enrichExercise } from './enrichment';
+import { deriveFrom, enrichExercise } from './enrichment';
 
 test('barbell bench press is a compound horizontal push', () => {
   const result = enrichExercise(
@@ -56,6 +56,28 @@ test('bodyweight push-up is beginner difficulty', () => {
     'body_weight',
   );
   expect(result.difficulty).toBe(1);
+});
+
+test('deriveFrom recomputes compound/difficulty/avgSecondsPerRep from an overridden pattern', () => {
+  // "assisted lying glutes stretch" is a real catalog-review.csv row: the
+  // rule guesses hip_dominant (a compound hinge), but an override corrects
+  // the pattern to isolation. Without re-deriving, `compound` stays true and
+  // `difficulty`/`avgSecondsPerRep` stay computed for a hinge that no longer
+  // applies — this is the exact bug build-catalog.ts must not reintroduce.
+  const input = {
+    name: 'assisted lying glutes stretch',
+    target: 'glutes',
+    equipment: 'assisted',
+    bodyPart: 'upper legs',
+  };
+  const ruled = enrichExercise(input, 'assisted');
+  expect(ruled.movementPattern).toBe('hip_dominant');
+  expect(ruled.compound).toBe(true);
+
+  const derived = deriveFrom(input, 'assisted', 'isolation', 'time');
+  expect(derived.compound).toBe(false);
+  expect(derived.difficulty).toBe(1); // 'assisted' is beginner equipment
+  expect(derived.avgSecondsPerRep).toBeNull(); // time-tracked, not reps
 });
 
 test('confidence is always within [0, 1]', () => {

@@ -44,4 +44,5 @@ example
 
 # catalog pipeline
 /.cache/
-/catalog-review.csv
+# catalog-review.csv is tracked on purpose — it's the human review queue for
+# low-confidence enrichment rows, not a build artifact.

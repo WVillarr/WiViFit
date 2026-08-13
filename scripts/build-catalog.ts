@@ -26,13 +26,87 @@ import Ajv2020 from 'ajv/dist/2020';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { MOVEMENT_PATTERNS, TRACKING_TYPES } from '@/db/enrichment-types';
+
 import { loadDataset, REPO_ROOT } from './dataset';
-import { enrichExercise } from './enrichment';
+import { deriveFrom, enrichExercise } from './enrichment';
 
 const OUT_DB_PATH = path.join(REPO_ROOT, 'assets', 'catalog.db');
 const OVERRIDES_PATH = path.join(REPO_ROOT, 'data', 'overrides.json');
 const REVIEW_CSV_PATH = path.join(REPO_ROOT, 'catalog-review.csv');
 const CONFIDENCE_THRESHOLD = 0.7;
+
+interface OverrideEntry {
+  movementPattern?: string;
+  compound?: boolean;
+  difficulty?: number;
+  trackingType?: string;
+  avgSecondsPerRep?: number | null;
+}
+
+const OVERRIDE_FIELDS = new Set([
+  'movementPattern',
+  'compound',
+  'difficulty',
+  'trackingType',
+  'avgSecondsPerRep',
+]);
+
+/**
+ * Loaded once per build and hand-authored, so a typo here is expensive to
+ * miss silently — `movement_pattern` instead of `movementPattern` used to do
+ * nothing and no one would notice until a routine came out wrong in Fase 3.
+ */
+function loadOverrides(datasetIds: ReadonlySet<string>): Record<string, OverrideEntry> {
+  if (!existsSync(OVERRIDES_PATH)) return {};
+  const raw = JSON.parse(readFileSync(OVERRIDES_PATH, 'utf-8')) as Record<string, unknown>;
+
+  for (const [id, value] of Object.entries(raw)) {
+    if (!datasetIds.has(id)) {
+      throw new Error(`data/overrides.json: "${id}" is not an exercise id in the dataset`);
+    }
+    if (typeof value !== 'object' || value === null) {
+      throw new Error(`data/overrides.json: entry for "${id}" must be an object`);
+    }
+    const entry = value as Record<string, unknown>;
+    for (const field of Object.keys(entry)) {
+      if (!OVERRIDE_FIELDS.has(field)) {
+        throw new Error(`data/overrides.json: "${id}" has unknown field "${field}"`);
+      }
+    }
+    if (
+      entry.movementPattern !== undefined &&
+      !(MOVEMENT_PATTERNS as readonly string[]).includes(entry.movementPattern as string)
+    ) {
+      throw new Error(
+        `data/overrides.json: "${id}" has invalid movementPattern "${entry.movementPattern}"`,
+      );
+    }
+    if (
+      entry.trackingType !== undefined &&
+      !(TRACKING_TYPES as readonly string[]).includes(entry.trackingType as string)
+    ) {
+      throw new Error(
+        `data/overrides.json: "${id}" has invalid trackingType "${entry.trackingType}"`,
+      );
+    }
+    if (entry.difficulty !== undefined && ![1, 2, 3].includes(entry.difficulty as number)) {
+      throw new Error(`data/overrides.json: "${id}" has invalid difficulty "${entry.difficulty}"`);
+    }
+    if (entry.compound !== undefined && typeof entry.compound !== 'boolean') {
+      throw new Error(`data/overrides.json: "${id}" compound must be a boolean`);
+    }
+    if (
+      entry.avgSecondsPerRep !== undefined &&
+      entry.avgSecondsPerRep !== null &&
+      typeof entry.avgSecondsPerRep !== 'number'
+    ) {
+      throw new Error(`data/overrides.json: "${id}" avgSecondsPerRep must be a number or null`);
+    }
+  }
+
+  return raw as Record<string, OverrideEntry>;
+}
 
 function slugify(value: string): string {
   return value
@@ -55,13 +129,11 @@ async function main() {
     process.exit(1);
   }
 
-  const overrides: Record<string, Partial<Record<string, unknown>>> = existsSync(OVERRIDES_PATH)
-    ? JSON.parse(readFileSync(OVERRIDES_PATH, 'utf-8'))
-    : {};
+  const overrides = loadOverrides(new Set(rawExercises.map((r) => r.id)));
 
   const seenIds = new Set<string>();
   const reviewRows: string[] = [
-    'id,name,target,equipment,movement_pattern,tracking_type,confidence',
+    'id,name,target,equipment,movement_pattern,tracking_type,confidence,overridden',
   ];
 
   interface BuiltExercise {
@@ -107,16 +179,31 @@ async function main() {
       enrichment.trackingTypeConfidence,
     );
 
-    if (confidence < CONFIDENCE_THRESHOLD && !(raw.id in overrides)) {
+    // Re-derive from the EFFECTIVE pattern/tracking type, not the rule's raw
+    // guess — otherwise an override that changes movementPattern silently
+    // leaves compound/difficulty/avgSecondsPerRep computed for the pattern it
+    // just replaced. See deriveFrom's docstring and the regression test in
+    // scripts/enrichment.test.ts.
+    const effectivePattern = (override.movementPattern as string) ?? enrichment.movementPattern;
+    const effectiveTrackingType = (override.trackingType as string) ?? enrichment.trackingType;
+    const derived = deriveFrom(
+      { name: raw.name, target: raw.target, equipment: raw.equipment, bodyPart: raw.body_part },
+      equipmentSlug,
+      effectivePattern as never,
+      effectiveTrackingType as never,
+    );
+
+    if (confidence < CONFIDENCE_THRESHOLD) {
       reviewRows.push(
         [
           raw.id,
           raw.name,
           raw.target,
           raw.equipment,
-          enrichment.movementPattern,
-          enrichment.trackingType,
+          effectivePattern,
+          effectiveTrackingType,
           confidence.toFixed(2),
+          raw.id in overrides ? 'yes' : 'no',
         ]
           .map((v) => `"${String(v).replace(/"/g, '""')}"`)
           .join(','),
@@ -139,20 +226,22 @@ async function main() {
       gifPath: raw.gif_url,
       attribution: raw.attribution,
       createdAt: raw.created_at,
-      movementPattern: (override.movementPattern as string) ?? enrichment.movementPattern,
-      compound: ((override.compound as boolean) ?? enrichment.compound) ? 1 : 0,
-      difficulty: (override.difficulty as number) ?? enrichment.difficulty,
-      trackingType: (override.trackingType as string) ?? enrichment.trackingType,
+      movementPattern: effectivePattern,
+      compound: ((override.compound as boolean) ?? derived.compound) ? 1 : 0,
+      difficulty: (override.difficulty as number) ?? derived.difficulty,
+      trackingType: effectiveTrackingType,
       avgSecondsPerRep:
-        (override.avgSecondsPerRep as number | undefined) ?? enrichment.avgSecondsPerRep,
+        override.avgSecondsPerRep !== undefined ? override.avgSecondsPerRep : derived.avgSecondsPerRep,
       enrichmentConfidence: confidence,
       secondaryMuscles: raw.secondary_muscles.map(slugify),
     };
   });
 
   writeFileSync(REVIEW_CSV_PATH, reviewRows.join('\n') + '\n', 'utf-8');
+  const overriddenCount = Object.keys(overrides).length;
   console.log(
-    `Wrote ${REVIEW_CSV_PATH} (${reviewRows.length - 1} rows below confidence ${CONFIDENCE_THRESHOLD})`,
+    `Wrote ${REVIEW_CSV_PATH} (${reviewRows.length - 1} rows below confidence ${CONFIDENCE_THRESHOLD}, ` +
+      `${overriddenCount} already have an override)`,
   );
 
   mkdirSync(path.dirname(OUT_DB_PATH), { recursive: true });

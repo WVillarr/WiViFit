@@ -16,25 +16,26 @@ import { mediaProvider } from './index';
  * open. `expo-image`'s disk cache already makes this a no-op for rows
  * prefetched once — re-scrolling past them doesn't re-fetch.
  */
-export function useGifPrefetch<T extends { id: string }>(gifPathFor: (item: T) => string) {
+export function useGifPrefetch<T extends { id: string }>(mediaIdFor: (item: T) => string) {
   const requested = useRef(new Set<string>());
   // FlatList reads `onViewableItemsChanged` once, in VirtualizedList's
   // constructor, and never again — a callback whose identity changes every
-  // render (as a plain closure over `gifPathFor` would) silently stops being
+  // render (as a plain closure over `mediaIdFor` would) silently stops being
   // the one that's actually called. Routing through a ref keeps the exported
   // callback's identity fixed for the component's lifetime while still
-  // calling whatever `gifPathFor` the latest render passed in.
-  const gifPathForRef = useRef(gifPathFor);
+  // calling whatever `mediaIdFor` the latest render passed in.
+  const mediaIdForRef = useRef(mediaIdFor);
   useEffect(() => {
-    gifPathForRef.current = gifPathFor;
-  }, [gifPathFor]);
+    mediaIdForRef.current = mediaIdFor;
+  }, [mediaIdFor]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken<T>[] }) => {
     for (const token of viewableItems) {
       const item = token.item;
       if (!item || requested.current.has(item.id)) continue;
       requested.current.add(item.id);
-      Image.prefetch(mediaProvider.getGifUri(gifPathForRef.current(item)), 'disk').catch(() => {
+      const uri = mediaProvider.getGifUri(item.id, mediaIdForRef.current(item));
+      Image.prefetch(uri, 'disk').catch(() => {
         // Offline or the host is unreachable — the placeholder thumbnail
         // still renders, so a failed prefetch just means no head start.
       });

@@ -195,6 +195,27 @@ function estimateAvgSecondsPerRep(
 }
 
 /**
+ * Fields that follow from the pattern + tracking type, wherever those came
+ * from. Split out of enrichExercise so build-catalog can re-derive them after
+ * an override changes the pattern — otherwise overriding movementPattern
+ * silently leaves compound/difficulty/avgSecondsPerRep computed from the old
+ * pattern the rule guessed.
+ */
+export function deriveFrom(
+  input: EnrichmentInput,
+  equipmentSlug: string,
+  pattern: MovementPattern,
+  trackingType: TrackingType,
+): Pick<EnrichmentResult, 'compound' | 'difficulty' | 'avgSecondsPerRep'> {
+  const compound = COMPOUND_PATTERNS.has(pattern);
+  return {
+    compound,
+    difficulty: classifyDifficulty(input, equipmentSlug, compound),
+    avgSecondsPerRep: estimateAvgSecondsPerRep(trackingType, compound, input.name),
+  };
+}
+
+/**
  * Rule-based enrichment: derives fields the dataset doesn't provide.
  * See AGENTS.md / plan Bloque D for rationale. Confidence below ~0.7 on
  * either classifier routes the row to catalog-review.csv for manual
@@ -203,9 +224,12 @@ function estimateAvgSecondsPerRep(
 export function enrichExercise(input: EnrichmentInput, equipmentSlug: string): EnrichmentResult {
   const { pattern, confidence: movementPatternConfidence } = classifyMovementPattern(input);
   const { type: trackingType, confidence: trackingTypeConfidence } = classifyTrackingType(input);
-  const compound = COMPOUND_PATTERNS.has(pattern);
-  const difficulty = classifyDifficulty(input, equipmentSlug, compound);
-  const avgSecondsPerRep = estimateAvgSecondsPerRep(trackingType, compound, input.name);
+  const { compound, difficulty, avgSecondsPerRep } = deriveFrom(
+    input,
+    equipmentSlug,
+    pattern,
+    trackingType,
+  );
 
   return {
     movementPattern: pattern,

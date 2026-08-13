@@ -21,6 +21,20 @@ import type { ImageSourcePropType } from 'react-native';
 export interface MediaProvider {
   /** Bundled, offline-available 180x180 thumbnail for an exercise. */
   getThumbnail(exerciseId: string): ImageSourcePropType;
-  /** Network URI for the animated demonstration GIF. Requires connectivity. */
-  getGifUri(gifPath: string): string;
+  /**
+   * Network URI for the animated demonstration GIF. Requires connectivity.
+   * Takes `mediaId` rather than a precomputed path: every catalog GIF path is
+   * exactly `videos/{exerciseId}-{mediaId}.gif`, so catalog.db stores the id
+   * and lets the provider derive the path — one less column to carry through
+   * every list query and search index.
+   */
+  getGifUri(exerciseId: string, mediaId: string): string;
+  /**
+   * Attribution line for the current media source. A single provider-wide
+   * string rather than a per-exercise column: every row in the dataset
+   * carries the identical "© Gym visual" credit, so storing it per row was
+   * 1,324 copies of one sentence. Swapping providers in Fase 8 swaps the
+   * credit with it.
+   */
+  readonly attribution: string;
 }

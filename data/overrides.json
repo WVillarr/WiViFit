@@ -1,1 +1,188 @@
-{}
+{
+  "1338": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1362": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1363": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1364": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1366": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1403": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1416": {
+    "movementPattern": "isolation"
+  },
+  "1418": {
+    "movementPattern": "knee_dominant"
+  },
+  "1419": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1423": {
+    "movementPattern": "isolation"
+  },
+  "1424": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1511": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1512": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1548": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1559": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1560": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1564": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1576": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1582": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1585": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1587": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1599": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1709": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1710": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "1713": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "2133": {
+    "movementPattern": "isolation",
+    "trackingType": "distance"
+  },
+  "2202": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "2205": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "2208": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "2567": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "2571": {
+    "movementPattern": "isolation"
+  },
+  "3212": {
+    "movementPattern": "isolation"
+  },
+  "3214": {
+    "movementPattern": "isolation"
+  },
+  "3215": {
+    "movementPattern": "isolation"
+  },
+  "3218": {
+    "movementPattern": "isolation"
+  },
+  "3231": {
+    "movementPattern": "isolation"
+  },
+  "3433": {
+    "movementPattern": "isolation"
+  },
+  "3552": {
+    "trackingType": "time"
+  },
+  "3639": {
+    "movementPattern": "isolation"
+  },
+  "0020": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "0028": {
+    "movementPattern": "hip_dominant"
+  },
+  "0459": {
+    "movementPattern": "isolation"
+  },
+  "0535": {
+    "trackingType": "reps"
+  },
+  "0613": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "0624": {
+    "movementPattern": "knee_dominant"
+  },
+  "0628": {
+    "movementPattern": "isolation"
+  },
+  "0716": {
+    "movementPattern": "isolation",
+    "trackingType": "time"
+  },
+  "0740": {
+    "movementPattern": "knee_dominant"
+  },
+  "0776": {
+    "movementPattern": "hip_dominant"
+  },
+  "0778": {
+    "movementPattern": "isolation"
+  },
+  "0984": {
+    "movementPattern": "isolation"
+  },
+  "0996": {
+    "movementPattern": "isolation"
+  }
+}

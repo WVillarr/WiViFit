@@ -52,17 +52,18 @@ const ChipHeight = 38;
 type FilterMode = 'list' | 'body';
 
 // Only what ExerciseRow renders — see ExerciseListItem for why this matters.
-// gifPath rides along too: it's a short string, not one of the long text
-// columns the comment on ExerciseListItem warns about, and it's what lets the
-// list prefetch GIFs for whatever's actually on screen (see useGifPrefetch).
+// mediaId rides along too: it's a short id, not one of the long text columns
+// the comment on ExerciseListItem warns about, and it's what lets the list
+// prefetch GIFs for whatever's actually on screen (see useGifPrefetch) — the
+// GIF path itself is derived from it by MediaProvider, not stored.
 const LIST_COLUMNS = {
   id: exercises.id,
   name: exercises.name,
   target: exercises.target,
-  gifPath: exercises.gifPath,
+  mediaId: exercises.mediaId,
 };
 
-type ResultRow = ExerciseListItem & { gifPath: string };
+type ResultRow = ExerciseListItem & { mediaId: string };
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -90,7 +91,7 @@ export default function ExercisesScreen() {
   // setup is bodyweight *and* dumbbells *and* a band. Empty means no filter.
   const [equipmentGroups, setEquipmentGroups] = useState<EquipmentGroup[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
-  const { onViewableItemsChanged } = useGifPrefetch<ResultRow>((item) => item.gifPath);
+  const { onViewableItemsChanged } = useGifPrefetch<ResultRow>((item) => item.mediaId);
   const [muscleCounts, setMuscleCounts] = useState<Record<string, number>>({});
   const debouncedSearch = useDebouncedValue(searchText, 150);
 
