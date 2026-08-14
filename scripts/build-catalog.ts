@@ -2,21 +2,32 @@
  * Builds assets/catalog.db from hasaneyldrm/exercises-dataset.
  *
  * Usage:
- *   npx tsx scripts/build-catalog.ts [--fresh]
+ *   npx tsx scripts/build-catalog.ts [--fresh] [--out <path>] [--accept-dataset-change]
  *
  * --fresh forces a re-download instead of using the .cache/ copy.
+ * --out writes somewhere other than assets/catalog.db — used by
+ * scripts/verify-catalog.ts to build a scratch copy and diff it against the
+ * committed one without touching the real asset.
+ * --accept-dataset-change updates data/dataset.lock.json when the upstream
+ * dataset's content no longer matches it, instead of throwing — see
+ * scripts/dataset.ts.
  *
  * Pipeline (see AGENTS.md / plan Fase 1, Bloques C+D):
  *   1. Download + validate exercises.json against the dataset's own schema.
  *   2. Drop unused locales (keep es/en) and the redundant `category` field.
  *   3. Normalize body_part/equipment/target/muscle_group to slug keys.
  *   4. Enrich each row with movement_pattern/compound/difficulty/
- *      tracking_type/avg_seconds_per_rep (scripts/enrichment.ts).
- *   5. Apply data/overrides.json corrections (by exercise id) on top of the
- *      rule output.
- *   6. Write catalog-review.csv for rows below the confidence threshold.
- *   7. Write assets/catalog.db (exercises, exercise_secondary_muscles, and
- *      an FTS5 index over name/instructions).
+ *      tracking_type/avg_seconds_per_rep (scripts/enrichment.ts) and
+ *      translate its name (scripts/exercise-names-es.ts).
+ *   5. Apply data/overrides.json and data/name-overrides.json corrections
+ *      (by exercise id) on top of the rule output.
+ *   6. Write catalog-review.csv and catalog-names-review.csv for rows below
+ *      the confidence threshold / left untranslated.
+ *   7. Write assets/catalog.db: exercises, exercise_instructions,
+ *      exercise_secondary_muscles, muscle_counts, and two FTS5 indexes —
+ *      exercises_fts_name (title search) and exercises_fts_prose (falls
+ *      back to instruction text) — see catalog-client.ts for why they're
+ *      separate.
  *
  * Re-running this from scratch reproduces the same catalog.db, overrides
  * included — it never hand-edits its own output.
@@ -26,6 +37,7 @@ import Ajv2020 from 'ajv/dist/2020';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { CATALOG_DB_VERSION } from '@/db/catalog-version';
 import { MOVEMENT_PATTERNS, TRACKING_TYPES } from '@/db/enrichment-types';
 import { secondaryPlateTargets } from '@/db/secondary-muscles';
 
@@ -33,7 +45,15 @@ import { loadDataset, REPO_ROOT } from './dataset';
 import { deriveFrom, enrichExercise } from './enrichment';
 import { translateExerciseName } from './exercise-names-es';
 
-const OUT_DB_PATH = path.join(REPO_ROOT, 'assets', 'catalog.db');
+function outPathFromArgs(): string {
+  const flagIndex = process.argv.indexOf('--out');
+  if (flagIndex === -1) return path.join(REPO_ROOT, 'assets', 'catalog.db');
+  const value = process.argv[flagIndex + 1];
+  if (!value) throw new Error('--out requires a path argument');
+  return path.resolve(value);
+}
+
+const OUT_DB_PATH = outPathFromArgs();
 const OVERRIDES_PATH = path.join(REPO_ROOT, 'data', 'overrides.json');
 const NAME_OVERRIDES_PATH = path.join(REPO_ROOT, 'data', 'name-overrides.json');
 const REVIEW_CSV_PATH = path.join(REPO_ROOT, 'catalog-review.csv');
@@ -181,7 +201,7 @@ async function main() {
     enrichmentConfidence: number;
     secondaryMuscles: string[];
     // Not stored on the `exercises` row (see catalog-schema.ts) — read off
-    // into exercise_instructions and exercises_fts below instead.
+    // into exercise_instructions and exercises_fts_prose below instead.
     instructionsEn: string;
     instructionsEs: string;
     instructionStepsEn: string;
@@ -193,6 +213,14 @@ async function main() {
       throw new Error(`Duplicate exercise id in dataset: ${raw.id}`);
     }
     seenIds.add(raw.id);
+    // exercises_fts_prose (below) is a contentless FTS5 table keyed by
+    // rowid = Number(id) — a bijection only if every id is a unique 4-digit
+    // numeral. Catch a dataset change that breaks that here, at the one
+    // place it can still be a clear error, rather than as silent id
+    // collisions inside the prose index.
+    if (!/^\d{4}$/.test(raw.id)) {
+      throw new Error(`Exercise id "${raw.id}" is not a 4-digit numeral — see exercises_fts_prose`);
+    }
 
     const equipmentSlug = slugify(raw.equipment);
     const enrichment = enrichExercise(
@@ -293,6 +321,11 @@ async function main() {
   // runtime (so WAL buys nothing), and wa-sqlite's OPFS VFS — what
   // expo-sqlite uses on web — cannot open a WAL-mode database at all.
   db.pragma('journal_mode = DELETE');
+  // Stamped into the file itself so scripts/catalog.test.ts can assert the
+  // built artifact matches CATALOG_DB_VERSION without re-deriving it from
+  // the schema — see catalog-version.ts for why the app-facing filename
+  // alone isn't enough of a guard.
+  db.pragma(`user_version = ${CATALOG_DB_VERSION}`);
 
   db.exec(`
     CREATE TABLE exercises (
@@ -331,14 +364,34 @@ async function main() {
       inclusive_count INTEGER NOT NULL
     );
 
-    CREATE VIRTUAL TABLE exercises_fts USING fts5(
+    -- Title search. Short rows, so bm25's length normalisation works FOR the
+    -- ranking instead of against it — see fts-weights.ts. id stays a real
+    -- (unindexed) content column rather than going contentless: the extra
+    -- ~80KB buys back the simplicity of selecting id directly, and this
+    -- table is small enough that it isn't worth the asymmetry with the
+    -- prose table below.
+    CREATE VIRTUAL TABLE exercises_fts_name USING fts5(
       id UNINDEXED,
       name,
       name_es,
-      instructions_en,
-      instructions_es,
       target,
       equipment
+    );
+
+    -- Prose fallback. content='' means FTS5 keeps no private copy of the
+    -- instruction text (that copy was 1.54MB of the old single-table
+    -- design's 7.25MB); detail='none' drops per-term positions too, which
+    -- this table never needs since it only ever answers "does this exercise
+    -- mention these words", never "where". rowid is set explicitly to the
+    -- exercise's id read as an integer when inserting below — every id was
+    -- just asserted to be a unique 4-digit numeral, so that's a bijection,
+    -- and it's what lets a contentless table exist without external-content
+    -- rowid bookkeeping (exercises.id is TEXT, not INTEGER PRIMARY KEY, so
+    -- FTS5's own external-content mode isn't an option — see catalog-client.ts).
+    CREATE VIRTUAL TABLE exercises_fts_prose USING fts5(
+      prose,
+      content='',
+      detail='none'
     );
   `);
 
@@ -360,8 +413,11 @@ async function main() {
   const insertMuscleCount = db.prepare(
     `INSERT INTO muscle_counts (target, primary_count, inclusive_count) VALUES (?, ?, ?)`,
   );
-  const insertFts = db.prepare(
-    `INSERT INTO exercises_fts (id, name, name_es, instructions_en, instructions_es, target, equipment) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  const insertFtsName = db.prepare(
+    `INSERT INTO exercises_fts_name (id, name, name_es, target, equipment) VALUES (?, ?, ?, ?, ?)`,
+  );
+  const insertFtsProse = db.prepare(
+    `INSERT INTO exercises_fts_prose (rowid, prose) VALUES (?, ?)`,
   );
 
   const insertAll = db.transaction((rows: BuiltExercise[]) => {
@@ -371,15 +427,8 @@ async function main() {
       for (const muscle of new Set(row.secondaryMuscles)) {
         insertSecondaryMuscle.run(row.id, muscle);
       }
-      insertFts.run(
-        row.id,
-        row.name,
-        row.nameEs,
-        row.instructionsEn,
-        row.instructionsEs,
-        row.target,
-        row.equipment,
-      );
+      insertFtsName.run(row.id, row.name, row.nameEs, row.target, row.equipment);
+      insertFtsProse.run(Number(row.id), `${row.instructionsEn} ${row.instructionsEs}`);
     }
 
     // One row per target (see muscle_counts's doc comment in

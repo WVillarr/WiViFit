@@ -21,7 +21,10 @@ export default function RoutinesScreen() {
         <View style={styles.headerRow}>
           <ThemedText type="sectionTitle">{t('routine.listTitle')}</ThemedText>
           <PressableScale
-            onPress={() => router.push('/routine/new')}
+            // `as Href`: same generated-types staleness as the dynamic route
+            // cast below — .expo/types/router.d.ts hasn't been regenerated
+            // since this route was added (regenerates on `expo start`).
+            onPress={() => router.push('/routine/new' as Href)}
             accessibilityRole="button"
             accessibilityLabel={t('routine.newTitle')}
             style={[styles.newButton, { backgroundColor: theme.accent }]}

@@ -1,6 +1,6 @@
 import { sql, eq } from 'drizzle-orm';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet } from 'react-native';
 import Animated, {
@@ -23,9 +23,11 @@ import {
   exerciseName,
   exercises,
   ExerciseListItem,
+  startSession,
   useCatalogDb,
   useFavorites,
   useRecentlyViewed,
+  useUserDb,
 } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
@@ -56,9 +58,11 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   const { items: favoriteItems } = useFavorites();
   const recentItems = useRecentlyViewed();
+  const userDb = useUserDb();
 
   const greeting = useGreeting();
   const [motivationIndex, setMotivationIndex] = useState(1);
+  const [startingFreeform, setStartingFreeform] = useState(false);
 
   const [activeMuscle, setActiveMuscle] = useState<string | null>(null);
   const [suggested, setSuggested] = useState<ExerciseListItem[]>([]);
@@ -122,6 +126,23 @@ export default function HomeScreen() {
     router.push(`/exercise/${pick.id}`);
   }
 
+  /** No routine day — the workout screen picks exercises ad-hoc as the
+   *  session happens (see isFreeform in workout/[sessionId].tsx). */
+  async function onStartFreeform() {
+    if (!userDb || startingFreeform) return;
+    setStartingFreeform(true);
+    try {
+      const sessionId = await startSession(userDb, null);
+      // `as Href`: generated-types staleness, not a real route error — see
+      // the same cast on the routines banner below.
+      router.push(`/workout/${sessionId}` as Href);
+    } catch (err) {
+      console.error('[home] start freeform session failed', err);
+    } finally {
+      setStartingFreeform(false);
+    }
+  }
+
   const pulse = useSharedValue(1);
   useEffect(() => {
     pulse.value = withRepeat(
@@ -168,18 +189,36 @@ export default function HomeScreen() {
           </PressableScale>
         </Animated.View>
 
-        <PressableScale
-          onPress={() => router.push('/routine/index')}
-          scaleTo={0.98}
-          accessibilityRole="button"
-          accessibilityLabel={t('routine.listTitle')}
-          style={[styles.routinesBanner, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
-        >
-          <ThemedText type="smallBold">{t('routine.listTitle')}</ThemedText>
-          <ThemedText type="small" style={{ color: theme.accent }}>
-            ›
-          </ThemedText>
-        </PressableScale>
+        <ThemedView style={styles.quickStartRow}>
+          <PressableScale
+            // `as Href`: generated-types staleness, not a real route error —
+            // see the same cast in routine/index.tsx.
+            onPress={() => router.push('/routine/index' as Href)}
+            scaleTo={0.98}
+            accessibilityRole="button"
+            accessibilityLabel={t('routine.listTitle')}
+            style={[styles.routinesBanner, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+          >
+            <ThemedText type="smallBold">{t('routine.listTitle')}</ThemedText>
+            <ThemedText type="small" style={{ color: theme.accent }}>
+              ›
+            </ThemedText>
+          </PressableScale>
+
+          <PressableScale
+            onPress={onStartFreeform}
+            disabled={startingFreeform}
+            scaleTo={0.98}
+            accessibilityRole="button"
+            accessibilityLabel={t('routine.freeformStart')}
+            style={[styles.routinesBanner, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+          >
+            <ThemedText type="smallBold">{t('routine.freeformStart')}</ThemedText>
+            <ThemedText type="small" style={{ color: theme.accent }}>
+              ›
+            </ThemedText>
+          </PressableScale>
+        </ThemedView>
 
         {favoriteItems.length > 0 && (
           <ExerciseShelf title={t('home.favoritesTitle')} items={favoriteItems} />
@@ -381,12 +420,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaArrow: { fontSize: 22, lineHeight: 26 },
+  quickStartRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.three,
+    backgroundColor: 'transparent',
+  },
   routinesBanner: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginHorizontal: Spacing.three,
-    marginTop: Spacing.three,
     padding: Spacing.three,
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,

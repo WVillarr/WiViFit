@@ -59,6 +59,8 @@ const EQUIPMENT_PHRASES: Record<string, string> = {
   weighted: 'con peso',
   bodyweight: 'con peso corporal',
   assisted: 'asistido',
+  'ez bar': 'con barra Z',
+  'ez-bar': 'con barra Z',
 };
 
 /**
@@ -105,6 +107,8 @@ const PHRASES: Record<string, string> = {
   'reverse curl': 'curl inverso',
   'pull-up': 'dominada',
   'pull up': 'dominada',
+  'pull-ups': 'dominadas',
+  'pull ups': 'dominadas',
   'chin-up': 'dominada supina',
   'chin up': 'dominada supina',
   'push-up': 'flexión',
@@ -153,6 +157,13 @@ const PHRASES: Record<string, string> = {
   'single leg': 'a una pierna',
   'two arm': 'a dos manos',
   'both arms': 'a dos manos',
+  'side bend': 'flexión lateral',
+  'wheel rollerout': 'rodamiento con rueda abdominal',
+  'muscle up': 'muscle-up',
+  'range of motion': 'rango de movimiento',
+  'v-up': 'elevación en V',
+  'v up': 'elevación en V',
+  'jack knife': 'navaja',
 };
 
 /** Single tokens: movements, positions, body parts and qualifiers. */
@@ -366,6 +377,60 @@ const WORDS: Record<string, string> = {
   cuban: 'cubano',
   turkish: 'turco',
   gironda: 'Gironda',
+  zottman: 'Zottman',
+
+  // Vocabulary gaps found by auditing catalog-names-review.csv's unresolved
+  // tokens against the real dataset (see docs/name-overrides-proposal.md) —
+  // each verified against every raw name that uses it, not guessed.
+  circular: 'circular',
+  motion: 'movimiento',
+  underhand: 'supino',
+  internal: 'interna',
+  external: 'externa',
+  chair: 'silla',
+  extended: 'extendido',
+  raised: 'elevado',
+  raises: 'elevaciones',
+  twisted: 'girado',
+  plyo: 'pliométrico',
+  frog: 'rana',
+  pelvic: 'pélvico',
+  tilt: 'inclinación',
+  reach: 'alcance',
+  balance: 'equilibrio',
+  bike: 'bicicleta',
+  burpee: 'burpee',
+  piriformis: 'piriforme',
+  scapula: 'escápula',
+  windmill: 'molino',
+  flat: 'plano',
+  drop: 'caída',
+  squatting: 'en cuclillas',
+  slingers: 'slingers',
+  pose: 'postura',
+  advanced: 'avanzado',
+  basic: 'básico',
+  intermediate: 'intermedio',
+  modified: 'modificado',
+  fixed: 'fijo',
+  crossover: 'cruce',
+  crossovers: 'cruces',
+  pulley: 'polea',
+  pike: 'pica',
+  flip: 'voltereta',
+  crawl: 'gateo',
+  tuck: 'encogido',
+  deltoid: 'deltoides',
+  deltoids: 'deltoides',
+  pronation: 'pronación',
+  supination: 'supinación',
+  pronated: 'pronado',
+  supinated: 'supinado',
+  rotational: 'rotacional',
+  abductor: 'abductor',
+  adductor: 'aductor',
+  gluteus: 'glúteo',
+  hyper: 'hiper',
 
   // Structural glue
   with: 'con',
@@ -381,6 +446,11 @@ const WORDS: Record<string, string> = {
   against: 'contra',
   through: 'a través',
   between: 'entre',
+  off: 'fuera de',
+  around: 'alrededor de',
+  into: 'hacia',
+  above: 'sobre',
+  across: 'a través',
   grip: 'agarre',
   attachment: 'agarre',
   machine: 'máquina',
@@ -390,13 +460,34 @@ const WORDS: Record<string, string> = {
   version: 'versión',
   variation: 'variante',
   pov: '',
+  from: 'desde',
+  // A bare hyphen surrounded by spaces is a clause separator in this dataset
+  // ("elbow lift - reverse push-up"), not a hyphenated compound word (those
+  // never have surrounding spaces and are matched whole via PHRASES/
+  // EQUIPMENT_PHRASES, e.g. "push-up").
+  '-': ',',
 };
 
 /** Tokens that carry no meaning worth translating (numerals, plate labels). */
 const PASSTHROUGH = /^(v|\d+|\d+°|[a-z])$/;
 
 function normalize(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+  return name
+    .trim()
+    .toLowerCase()
+    // Parens never carry meaning of their own in this dataset — they wrap a
+    // qualifier ("(male)", "(with towel)", "(kneeling)") — but stuck to the
+    // token they never match a WORDS/EQUIPMENT_PHRASES key ("(male)" isn't
+    // "male"), which alone accounted for most unresolved names. Drop them and
+    // let the word inside resolve on its own.
+    .replace(/[()]/g, ' ')
+    // A handful of dataset entries carry a mis-encoded '°' (degree sign) as
+    // 'в°' — not a translation gap, a source encoding artifact.
+    .replace(/в°/g, '°')
+    // "v. 2" is a version marker ("v 2" would pass through via PASSTHROUGH
+    // below); the period is the only thing stopping it from matching.
+    .replace(/\bv\.\s*(\d)/g, 'v $1')
+    .replace(/\s+/g, ' ');
 }
 
 /** Longest-first so multi-word keys are tried before their own substrings. */
@@ -425,8 +516,15 @@ export function translateExerciseName(rawName: string): NameTranslation {
   const trailing: string[] = [];
 
   // 1. Lift out equipment, remembering it for the tail of the Spanish name.
+  // A leading preposition ("on exercise ball", "with towel") is consumed
+  // along with the phrase it introduces — EQUIPMENT_PHRASES' own Spanish
+  // ("con fitball", "con toalla") already supplies it, so leaving "on"/"with"
+  // in place stranded it mid-sentence as a bare "en"/"con" with nothing after.
   for (const key of EQUIPMENT_KEYS) {
-    const pattern = new RegExp(`(^|[\\s-])${escapeRegExp(key)}($|[\\s-])`, 'g');
+    const pattern = new RegExp(
+      `(^|[\\s-])(?:on|in|with|using)?[\\s-]?${escapeRegExp(key)}($|[\\s-])`,
+      'g',
+    );
     if (pattern.test(working)) {
       working = working.replace(pattern, '$1\0$2');
       trailing.push(EQUIPMENT_PHRASES[key]);

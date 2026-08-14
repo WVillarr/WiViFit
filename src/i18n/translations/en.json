@@ -28,7 +28,6 @@
   "exercises": {
     "searchPlaceholder": "Search exercises...",
     "noResults": "No exercises found",
-    "allMuscles": "All",
     "resultsCount": "{{count}} exercises",
     "modeList": "List",
     "modeBody": "Body",
@@ -37,7 +36,12 @@
     "bodyMapPrompt": "Tap a muscle to learn its name",
     "bodyMapConfirm": "Tap again to see the exercises",
     "bodyMapShowing": "Showing these exercises",
-    "equipmentLabel": "What you train with"
+    "equipmentLabel": "What you train with",
+    "filters": "Filters",
+    "includeSecondary": "Include secondary",
+    "patternLabel": "Movement pattern",
+    "difficultyLabel": "Difficulty",
+    "clearFilters": "Clear"
   },
   "explore": {
     "title": "Categories",
@@ -61,6 +65,16 @@
     "1": "Beginner",
     "2": "Intermediate",
     "3": "Advanced"
+  },
+  "movementPatterns": {
+    "horizontal_push": "Horizontal push",
+    "vertical_push": "Vertical push",
+    "horizontal_pull": "Horizontal pull",
+    "vertical_pull": "Vertical pull",
+    "knee_dominant": "Knee-dominant",
+    "hip_dominant": "Hip-dominant",
+    "core": "Core",
+    "isolation": "Isolation"
   },
   "muscles": {
     "abdominals": "Abdominals",
@@ -180,12 +194,23 @@
     "repsMin": "Min reps",
     "repsMax": "Max reps",
     "durationSeconds": "Duration (s)",
+    "targetDistanceMeters": "Distance (m)",
     "restSeconds": "Rest (s)",
     "save": "Save routine",
     "saving": "Saving…",
     "pickExerciseTitle": "Pick an exercise",
     "startWorkout": "Start workout",
-    "noExercisesYet": "Add at least one exercise before saving."
+    "noExercisesYet": "Add at least one exercise before saving.",
+    "edit": "Edit",
+    "editTitle": "Edit routine",
+    "delete": "Delete",
+    "deleteConfirmTitle": "Delete this routine?",
+    "deleteConfirmBody": "Its workout history is kept — only the routine itself is removed.",
+    "freeformStart": "Start a workout",
+    "freeformHint": "No routine — pick exercises as you go",
+    "freeformPickExercise": "Add an exercise",
+    "freeformChangeExercise": "Change exercise",
+    "freeformSetsLogged": "{{count}} sets logged"
   },
   "workout": {
     "restLabel": "Rest",
@@ -203,6 +228,7 @@
     "setNumber": "Set {{count}}",
     "weightKg": "Weight (kg)",
     "reps": "Reps",
+    "distanceMeters": "Distance (m)",
     "logSet": "Log set",
     "newPersonalRecord": "New personal record!"
   }

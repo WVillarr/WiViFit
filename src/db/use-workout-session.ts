@@ -95,10 +95,31 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
     return [];
   }
 
-  const candidates: { type: PersonalRecordRow['type']; value: number }[] = [
-    { type: 'estimated_1rm', value: estimated1Rm(input.weightKg, input.reps) },
-    { type: 'volume', value: input.weightKg * input.reps },
-    { type: 'reps', value: input.reps },
+  // "Volumen (peso × reps sumado en la sesión)" — this exercise's running
+  // total across every non-warmup set logged so far *in this session*, not
+  // this one set's volume alone. The just-inserted set above is already
+  // included, since this query runs after that write.
+  const [{ sessionVolume }] = await userDb
+    .select({
+      sessionVolume: sql<number>`COALESCE(SUM(${sessionSets.weightKg} * ${sessionSets.reps}), 0)`,
+    })
+    .from(sessionSets)
+    .where(
+      and(
+        eq(sessionSets.sessionId, input.sessionId),
+        eq(sessionSets.exerciseId, input.exerciseId),
+        eq(sessionSets.isWarmup, false),
+        isNull(sessionSets.deletedAt),
+      ),
+    );
+
+  const candidates: { type: PersonalRecordRow['type']; value: number; contextWeightKg: number | null }[] = [
+    { type: 'estimated_1rm', value: estimated1Rm(input.weightKg, input.reps), contextWeightKg: null },
+    { type: 'volume', value: sessionVolume, contextWeightKg: null },
+    // "Reps a un peso dado" — scoped to the weight this set was done at (see
+    // contextWeightKg's doc comment on personalRecords), so 30 reps at 5kg
+    // never reads as beating 8 reps at 50kg.
+    { type: 'reps', value: input.reps, contextWeightKg: input.weightKg },
   ];
 
   // A beaten record's old row is left in place rather than deleted or
@@ -111,7 +132,15 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
     const [best] = await userDb
       .select()
       .from(personalRecords)
-      .where(and(eq(personalRecords.exerciseId, input.exerciseId), eq(personalRecords.type, candidate.type)))
+      .where(
+        and(
+          eq(personalRecords.exerciseId, input.exerciseId),
+          eq(personalRecords.type, candidate.type),
+          candidate.contextWeightKg == null
+            ? undefined
+            : eq(personalRecords.contextWeightKg, candidate.contextWeightKg),
+        ),
+      )
       .orderBy(desc(personalRecords.value))
       .limit(1);
 
@@ -123,6 +152,7 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
       exerciseId: input.exerciseId,
       type: candidate.type,
       value: candidate.value,
+      contextWeightKg: candidate.contextWeightKg,
       achievedAt: now,
       sessionSetId: setId,
     };
@@ -164,9 +194,9 @@ export async function finishSession(userDb: UserDb, sessionId: string): Promise<
 
 /**
  * The most recent completed set for this exercise from a *different*
- * session — what the workout screen prefills as "same as last time". Scoped
- * to reps-tracked sets only; time/distance exercises don't have a
- * weight/reps pair to suggest.
+ * session — what the workout screen prefills as "same as last time". Returns
+ * whichever of weightKg/reps/durationSeconds/distanceMeters that set had
+ * populated; the caller reads only the fields its current trackingType uses.
  */
 export async function lastSetForExercise(userDb: UserDb, exerciseId: string, excludingSessionId: string) {
   const [row] = await userDb

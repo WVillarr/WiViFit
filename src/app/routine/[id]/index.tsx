@@ -1,7 +1,7 @@
 import { inArray } from 'drizzle-orm';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PressableScale } from '@/components/pressable-scale';
@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import {
+  deleteRoutine,
   exerciseName,
   exercises,
   startSession,
@@ -33,6 +34,7 @@ export default function RoutineDetailScreen() {
 
   const [exerciseById, setExerciseById] = useState<Map<string, ExerciseRowType>>(new Map());
   const [startingDayId, setStartingDayId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Days/exercises only store exerciseId; names and trackingType live in
   // catalog.db, hydrated once per day-list change — same split as
@@ -63,6 +65,31 @@ export default function RoutineDetailScreen() {
     }
   }
 
+  function onEdit() {
+    router.push(`/routine/${id}/edit` as Href);
+  }
+
+  function onDelete() {
+    if (!userDb || !routine) return;
+    Alert.alert(t('routine.deleteConfirmTitle'), t('routine.deleteConfirmBody'), [
+      { text: t('workout.cancel'), style: 'cancel' },
+      {
+        text: t('routine.delete'),
+        style: 'destructive',
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            await deleteRoutine(userDb, routine.id);
+            router.replace('/routine/index' as Href);
+          } catch (err) {
+            console.error('[routine/id] delete failed', err);
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
+  }
+
   if (loading || !routine) {
     return (
       <ThemedView style={styles.container}>
@@ -75,7 +102,28 @@ export default function RoutineDetailScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <ThemedText type="sectionTitle">{routine.name}</ThemedText>
+          <View style={styles.titleRow}>
+            <ThemedText type="sectionTitle" style={styles.titleText}>
+              {routine.name}
+            </ThemedText>
+            <View style={styles.titleActions}>
+              <PressableScale onPress={onEdit} accessibilityRole="button" accessibilityLabel={t('routine.edit')}>
+                <ThemedText type="small" style={{ color: theme.accent }}>
+                  {t('routine.edit')}
+                </ThemedText>
+              </PressableScale>
+              <PressableScale
+                onPress={onDelete}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel={t('routine.delete')}
+              >
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('routine.delete')}
+                </ThemedText>
+              </PressableScale>
+            </View>
+          </View>
 
           {days.map((day) => (
             <ThemedView
@@ -108,10 +156,12 @@ export default function RoutineDetailScreen() {
                     <ThemedText type="small" themeColor="textSecondary">
                       {/* routine_exercises has no trackingType column of its own — which
                           field is populated already says how this set is measured, see
-                          defaultsFor() in routine/new.tsx. */}
-                      {ex.targetDurationSeconds != null
-                        ? `${ex.targetSets} × ${ex.targetDurationSeconds}s`
-                        : `${ex.targetSets} × ${ex.repRangeMin}-${ex.repRangeMax}`}
+                          defaultsFor() in routine-draft-editor.tsx. */}
+                      {ex.targetDistanceMeters != null
+                        ? `${ex.targetSets} × ${ex.targetDistanceMeters}m`
+                        : ex.targetDurationSeconds != null
+                          ? `${ex.targetSets} × ${ex.targetDurationSeconds}s`
+                          : `${ex.targetSets} × ${ex.repRangeMin}-${ex.repRangeMax}`}
                     </ThemedText>
                   </View>
                 );
@@ -128,6 +178,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
   scrollContent: { padding: Spacing.three, gap: Spacing.three, paddingBottom: Spacing.six },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  titleText: { flex: 1 },
+  titleActions: { flexDirection: 'row', gap: Spacing.three },
   dayCard: {
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,

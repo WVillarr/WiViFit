@@ -51,6 +51,7 @@ const SCHEMA_SQL = `
     rep_range_min INTEGER,
     rep_range_max INTEGER,
     target_duration_seconds INTEGER,
+    target_distance_meters INTEGER,
     rest_seconds INTEGER NOT NULL,
     deleted_at TEXT
   );
@@ -85,6 +86,7 @@ const SCHEMA_SQL = `
     exercise_id TEXT NOT NULL,
     type TEXT NOT NULL,
     value REAL NOT NULL,
+    context_weight_kg REAL,
     achieved_at TEXT NOT NULL,
     session_set_id TEXT NOT NULL
   );

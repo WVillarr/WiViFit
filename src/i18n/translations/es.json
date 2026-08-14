@@ -28,7 +28,6 @@
   "exercises": {
     "searchPlaceholder": "Buscar ejercicios...",
     "noResults": "No se encontraron ejercicios",
-    "allMuscles": "Todos",
     "resultsCount": "{{count}} ejercicios",
     "modeList": "Lista",
     "modeBody": "Cuerpo",
@@ -37,7 +36,12 @@
     "bodyMapPrompt": "Toca un músculo para aprender su nombre",
     "bodyMapConfirm": "Toca otra vez para ver los ejercicios",
     "bodyMapShowing": "Mostrando estos ejercicios",
-    "equipmentLabel": "Con qué entrenas"
+    "equipmentLabel": "Con qué entrenas",
+    "filters": "Filtros",
+    "includeSecondary": "Incluir secundarios",
+    "patternLabel": "Patrón de movimiento",
+    "difficultyLabel": "Dificultad",
+    "clearFilters": "Limpiar"
   },
   "explore": {
     "title": "Categorías",
@@ -61,6 +65,16 @@
     "1": "Principiante",
     "2": "Intermedio",
     "3": "Avanzado"
+  },
+  "movementPatterns": {
+    "horizontal_push": "Empuje horizontal",
+    "vertical_push": "Empuje vertical",
+    "horizontal_pull": "Tirón horizontal",
+    "vertical_pull": "Tirón vertical",
+    "knee_dominant": "Dominante de rodilla",
+    "hip_dominant": "Dominante de cadera",
+    "core": "Core",
+    "isolation": "Aislamiento"
   },
   "muscles": {
     "abdominals": "Abdominales",
@@ -180,12 +194,23 @@
     "repsMin": "Reps mín.",
     "repsMax": "Reps máx.",
     "durationSeconds": "Duración (s)",
+    "targetDistanceMeters": "Distancia (m)",
     "restSeconds": "Descanso (s)",
     "save": "Guardar rutina",
     "saving": "Guardando…",
     "pickExerciseTitle": "Elegir ejercicio",
     "startWorkout": "Empezar entrenamiento",
-    "noExercisesYet": "Agrega al menos un ejercicio para poder guardar."
+    "noExercisesYet": "Agrega al menos un ejercicio para poder guardar.",
+    "edit": "Editar",
+    "editTitle": "Editar rutina",
+    "delete": "Eliminar",
+    "deleteConfirmTitle": "¿Eliminar esta rutina?",
+    "deleteConfirmBody": "Tu historial de entrenamientos se conserva — solo se elimina la rutina.",
+    "freeformStart": "Empezar un entrenamiento",
+    "freeformHint": "Sin rutina — elige ejercicios sobre la marcha",
+    "freeformPickExercise": "Agregar un ejercicio",
+    "freeformChangeExercise": "Cambiar ejercicio",
+    "freeformSetsLogged": "{{count}} series registradas"
   },
   "workout": {
     "restLabel": "Descanso",
@@ -203,6 +228,7 @@
     "setNumber": "Serie {{count}}",
     "weightKg": "Peso (kg)",
     "reps": "Reps",
+    "distanceMeters": "Distancia (m)",
     "logSet": "Registrar serie",
     "newPersonalRecord": "¡Nuevo récord personal!"
   }

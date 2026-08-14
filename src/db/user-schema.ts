@@ -5,9 +5,10 @@ import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
  * (see openUserDb in user-client.ts for why it's a separate file from
  * catalog.db).
  *
- * No drizzle-kit migrations yet — `ensureUserSchema`'s `CREATE TABLE IF NOT
- * EXISTS` is the whole migration story. Once this needs an actual ALTER,
- * that's the signal to add drizzle-kit rather than hand-roll a second one.
+ * No drizzle-kit migrations yet — `SCHEMA_SQL` in user-client.ts's
+ * `openUserDb`, a `CREATE TABLE IF NOT EXISTS` per table below, is the whole
+ * migration story. Once this needs an actual ALTER, that's the signal to add
+ * drizzle-kit rather than hand-roll a second one.
  */
 export const favorites = sqliteTable('favorites', {
   exerciseId: text('exercise_id').primaryKey(),
@@ -68,8 +69,10 @@ export const routineExercises = sqliteTable('routine_exercises', {
   /** Set for exercises.trackingType === 'reps'; null otherwise. */
   repRangeMin: integer('rep_range_min'),
   repRangeMax: integer('rep_range_max'),
-  /** Set for exercises.trackingType === 'time'; null otherwise. */
+  /** Set for exercises.trackingType === 'time' or 'distance'; null otherwise. */
   targetDurationSeconds: integer('target_duration_seconds'),
+  /** Set for exercises.trackingType === 'distance'; null otherwise. */
+  targetDistanceMeters: integer('target_distance_meters'),
   restSeconds: integer('rest_seconds').notNull(),
   deletedAt: text('deleted_at'),
 });
@@ -111,6 +114,10 @@ export const personalRecords = sqliteTable('personal_records', {
   exerciseId: text('exercise_id').notNull(),
   type: text('type').notNull().$type<'estimated_1rm' | 'volume' | 'reps'>(),
   value: real('value').notNull(),
+  /** Set only for type 'reps' — "most reps at a given weight" only means
+   *  something scoped to that weight; without it, 30 reps at 5kg would beat
+   *  8 reps at 50kg on raw rep count alone. See logSet's PR candidates. */
+  contextWeightKg: real('context_weight_kg'),
   achievedAt: text('achieved_at').notNull(),
   sessionSetId: text('session_set_id').notNull(),
 });

@@ -1,5 +1,5 @@
 import { inArray } from 'drizzle-orm';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +26,21 @@ import {
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 import { cancelRestEnd, scheduleRestEnd } from '@/notifications/rest-timer';
+
+import { requestExercisePick } from '../routine/_picker-bridge';
+
+/** A module-level helper, not inline in the component body, so React
+ *  Compiler's purity check doesn't need to reason about a direct Date.now()
+ *  read inside render-reachable code — the same reason useRestCountdown's
+ *  own Date.now() call below only ever happens inside a setInterval callback. */
+function computeRestEndsAt(restSeconds: number): number {
+  return Date.now() + restSeconds * 1000;
+}
+
+/** A freeform session has no routine_exercises row to read a rest period
+ *  from — the guide doesn't specify one for this mode, so this is a plain,
+ *  reasonable default rather than a derived value. */
+const FREEFORM_REST_SECONDS = 90;
 
 /**
  * A JS `setInterval` freezes when the screen locks or the app backgrounds —
@@ -78,18 +93,36 @@ export default function WorkoutScreen() {
   const [weightKg, setWeightKg] = useState(0);
   const [reps, setReps] = useState(0);
   const [durationSeconds, setDurationSeconds] = useState(0);
+  const [distanceMeters, setDistanceMeters] = useState(0);
+  // Two parallel primitives rather than one `{ endsAt, exerciseLabel }`
+  // object — the label still has to be captured in the same synchronous
+  // batch as endsAt (see logCurrentSet and the notification effect below for
+  // why), but React Compiler flags constructing a new object from an impure
+  // Date.now() read as a memoization hazard; two primitive setState calls
+  // sidestep that without losing the fix.
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const [restExerciseLabel, setRestExerciseLabel] = useState('');
   const [newRecords, setNewRecords] = useState<PersonalRecordRow[]>([]);
   const [finished, setFinished] = useState(false);
   const [totalVolumeKg, setTotalVolumeKg] = useState(0);
   const [logging, setLogging] = useState(false);
   const restNotificationIdRef = useRef<string | null>(null);
 
+  // No routineDayId — the user started this from Home's "start a workout"
+  // rather than a routine day, so there's no predetermined exercise list to
+  // step through. See freeformExercise below: the exercise (and how many
+  // sets) is chosen as the workout happens, not planned ahead of time.
+  const isFreeform = session != null && session.routineDayId == null;
+  const [freeformExercise, setFreeformExercise] = useState<ExerciseRowType | null>(null);
+  const [freeformSetIndex, setFreeformSetIndex] = useState(0);
+  const [freeformLoggedCount, setFreeformLoggedCount] = useState(0);
+
   const restSecondsRemaining = useRestCountdown(restEndsAt);
   const currentRoutineExercise: RoutineExerciseRow | undefined = routineExercises[progress.exerciseIndex];
   const currentExercise = currentRoutineExercise
     ? catalogByExerciseId.get(currentRoutineExercise.exerciseId)
     : undefined;
+  const activeExercise = isFreeform ? freeformExercise : currentExercise;
 
   useEffect(() => {
     const ids = Array.from(new Set(routineExercises.map((e) => e.exerciseId)));
@@ -103,36 +136,48 @@ export default function WorkoutScreen() {
   }, [catalogDb, routineExercises]);
 
   // Prefill weight/reps from the last time this exercise was logged, in a
-  // *different* session — see lastSetForExercise. Runs each time the current
+  // *different* session — see lastSetForExercise. Runs each time the active
   // exercise or set changes, not just once, so set 2 prefills from set 1's
-  // history the same way set 1 prefilled from last workout.
+  // history the same way set 1 prefilled from last workout. Keyed on
+  // activeExercise.id so this works identically whether it came from a
+  // routine day or was picked ad-hoc in a freeform session.
   useEffect(() => {
-    if (!userDb || !currentRoutineExercise) return;
+    if (!userDb || !activeExercise) return;
     let cancelled = false;
-    lastSetForExercise(userDb, currentRoutineExercise.exerciseId, sessionId!)
+    lastSetForExercise(userDb, activeExercise.id, sessionId!)
       .then((last) => {
         if (cancelled || !last) return;
         if (last.weightKg != null) setWeightKg(last.weightKg);
         if (last.reps != null) setReps(last.reps);
         if (last.durationSeconds != null) setDurationSeconds(last.durationSeconds);
+        if (last.distanceMeters != null) setDistanceMeters(last.distanceMeters);
       })
       .catch((err) => console.error('[workout] last-set lookup failed', err));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userDb, currentRoutineExercise?.exerciseId, progress.exerciseIndex]);
+  }, [userDb, activeExercise?.id, progress.exerciseIndex]);
 
   // Backstop for the rest timer: if the user never looks back at the app,
   // this still marks the end so the OS notification tray does the reminding
   // the frozen JS interval can't (see rest-timer.ts). Cancelled whenever
   // rest ends any other way (skipped, or superseded by a new rest window) so
   // a stale one doesn't fire minutes after the person already moved on.
+  //
+  // Reads `restExerciseLabel` rather than `currentExercise` on purpose:
+  // `setRestEndsAt`/`setRestExerciseLabel` and the `setProgress` that
+  // advances to the next exercise all run synchronously inside the same
+  // `logCurrentSet` call and land in the same React batch, so by the time
+  // this effect re-runs (on `restEndsAt` changing), `currentExercise`
+  // already points at the *next* exercise — the notification would announce
+  // the wrong one. Capturing the label into its own state at the moment rest
+  // starts (see logCurrentSet) sidesteps the render-order race entirely.
   useEffect(() => {
     if (restEndsAt == null) return;
     let cancelled = false;
     const seconds = (restEndsAt - Date.now()) / 1000;
-    scheduleRestEnd(seconds, currentExercise ? exerciseName(currentExercise, locale) : '', t('workout.restLabel'))
+    scheduleRestEnd(seconds, restExerciseLabel, t('workout.restLabel'))
       .then((id) => {
         if (cancelled) {
           cancelRestEnd(id);
@@ -148,6 +193,10 @@ export default function WorkoutScreen() {
         restNotificationIdRef.current = null;
       }
     };
+    // t/restExerciseLabel aren't deps: t's identity churns every render
+    // without its content changing mid-session, and restExerciseLabel is
+    // always set in the same batch as restEndsAt (see logCurrentSet) so it's
+    // never stale when this reads it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restEndsAt]);
 
@@ -155,26 +204,59 @@ export default function WorkoutScreen() {
     ? progress.setIndex >= currentRoutineExercise.targetSets - 1
     : false;
   const isLastExercise = progress.exerciseIndex >= routineExercises.length - 1;
-  const isTimeBased = currentRoutineExercise?.targetDurationSeconds != null;
+  // The catalog's own trackingType, not which routine_exercises field happens
+  // to be non-null — that's the authoritative source (see
+  // exercises.trackingType in catalog-schema.ts) and it's what the routine
+  // creator (routine/new.tsx) already branches on for the same reason.
+  const activeTrackingType = activeExercise?.trackingType ?? 'reps';
+
+  function pickFreeformExercise() {
+    requestExercisePick((exercise) => {
+      setFreeformExercise(exercise);
+      setFreeformSetIndex(0);
+      setWeightKg(0);
+      setReps(0);
+      setDurationSeconds(0);
+      setDistanceMeters(0);
+    });
+    // `as Href`: generated-types staleness, not a real route error — see the
+    // same cast in routine/index.tsx.
+    router.push('/routine/pick-exercise' as Href);
+  }
 
   async function logCurrentSet() {
-    if (!userDb || !sessionId || !currentRoutineExercise || logging) return;
+    if (!userDb || !sessionId || !activeExercise || logging) return;
+    if (!isFreeform && !currentRoutineExercise) return;
     setLogging(true);
     try {
+      const setIndex = isFreeform ? freeformSetIndex : progress.setIndex;
       const achieved = await logSet(userDb, {
         sessionId,
-        exerciseId: currentRoutineExercise.exerciseId,
-        setIndex: progress.setIndex,
-        weightKg: isTimeBased ? null : weightKg,
-        reps: isTimeBased ? null : reps,
-        durationSeconds: isTimeBased ? durationSeconds : null,
-        distanceMeters: null,
+        exerciseId: activeExercise.id,
+        setIndex,
+        weightKg: activeTrackingType === 'reps' ? weightKg : null,
+        reps: activeTrackingType === 'reps' ? reps : null,
+        durationSeconds: activeTrackingType === 'reps' ? null : durationSeconds,
+        distanceMeters: activeTrackingType === 'distance' ? distanceMeters : null,
         isWarmup: false,
       });
       if (achieved.length > 0) setNewRecords((current) => [...current, ...achieved]);
 
-      if (currentRoutineExercise.restSeconds > 0 && !(isLastSetOfExercise && isLastExercise)) {
-        setRestEndsAt(Date.now() + currentRoutineExercise.restSeconds * 1000);
+      if (isFreeform) {
+        // Both set now, before setFreeformSetIndex (below) can advance —
+        // same ordering reason as the routine branch's comment.
+        setRestExerciseLabel(exerciseName(activeExercise, locale));
+        setRestEndsAt(computeRestEndsAt(FREEFORM_REST_SECONDS));
+        setFreeformSetIndex((i) => i + 1);
+        setFreeformLoggedCount((c) => c + 1);
+        return;
+      }
+
+      if (currentRoutineExercise!.restSeconds > 0 && !(isLastSetOfExercise && isLastExercise)) {
+        // Both set now, before setProgress (below) can advance
+        // currentExercise to the next one in the same batch.
+        setRestExerciseLabel(currentExercise ? exerciseName(currentExercise, locale) : '');
+        setRestEndsAt(computeRestEndsAt(currentRoutineExercise!.restSeconds));
       }
 
       if (!isLastSetOfExercise) {
@@ -224,7 +306,18 @@ export default function WorkoutScreen() {
     );
   }
 
-  if (!session || routineExercises.length === 0 || !currentExercise || !currentRoutineExercise) {
+  if (!session) {
+    return (
+      <ThemedView style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']} />
+      </ThemedView>
+    );
+  }
+
+  // A freeform session has no routine day to still be loading exercises
+  // for — activeExercise being null there just means "hasn't picked one
+  // yet" (see the prompt card below), not "still loading".
+  if (!isFreeform && (routineExercises.length === 0 || !currentExercise || !currentRoutineExercise)) {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']} />
@@ -238,7 +331,9 @@ export default function WorkoutScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.topRow}>
             <ThemedText type="small" themeColor="textSecondary">
-              {t('routine.sets')} {setsSummary}
+              {isFreeform
+                ? t('workout.freeformSetsLogged', { count: freeformLoggedCount })
+                : `${t('routine.sets')} ${setsSummary}`}
             </ThemedText>
             <PressableScale onPress={confirmFinishEarly} accessibilityRole="button">
               <ThemedText type="small" style={{ color: theme.accent }}>
@@ -247,50 +342,89 @@ export default function WorkoutScreen() {
             </PressableScale>
           </View>
 
-          <ThemedText type="sectionTitle" style={styles.exerciseTitle}>
-            {exerciseName(currentExercise, locale)}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {t('workout.setNumber', { count: progress.setIndex + 1 })} / {currentRoutineExercise.targetSets}
-          </ThemedText>
-
-          {restEndsAt != null && restSecondsRemaining > 0 ? (
-            <ThemedView type="backgroundElement" style={[styles.restCard, { borderColor: theme.border }]}>
-              <ThemedText type="title" style={{ color: theme.accent }}>
-                {restSecondsRemaining}s
+          {activeExercise ? (
+            <>
+              <ThemedText type="sectionTitle" style={styles.exerciseTitle}>
+                {exerciseName(activeExercise, locale)}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {t('workout.restLabel')}
+                {isFreeform
+                  ? t('workout.setNumber', { count: freeformSetIndex + 1 })
+                  : `${t('workout.setNumber', { count: progress.setIndex + 1 })} / ${currentRoutineExercise!.targetSets}`}
               </ThemedText>
-              <PressableScale
-                onPress={() => setRestEndsAt(null)}
-                scaleTo={0.96}
-                accessibilityRole="button"
-                style={[styles.skipButton, { borderColor: theme.border }]}
-              >
-                <ThemedText type="small">{t('workout.skipRest')}</ThemedText>
-              </PressableScale>
-            </ThemedView>
+
+              {restEndsAt != null && restSecondsRemaining > 0 ? (
+                <ThemedView type="backgroundElement" style={[styles.restCard, { borderColor: theme.border }]}>
+                  <ThemedText type="title" style={{ color: theme.accent }}>
+                    {restSecondsRemaining}s
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {t('workout.restLabel')}
+                  </ThemedText>
+                  <PressableScale
+                    onPress={() => setRestEndsAt(null)}
+                    scaleTo={0.96}
+                    accessibilityRole="button"
+                    style={[styles.skipButton, { borderColor: theme.border }]}
+                  >
+                    <ThemedText type="small">{t('workout.skipRest')}</ThemedText>
+                  </PressableScale>
+                </ThemedView>
+              ) : (
+                <ThemedView type="backgroundElement" style={[styles.entryCard, { borderColor: theme.border }]}>
+                  {activeTrackingType === 'reps' ? (
+                    <View style={styles.entryFields}>
+                      <NumberField label={t('workout.weightKg')} value={weightKg} onChange={setWeightKg} allowDecimal />
+                      <NumberField label={t('workout.reps')} value={reps} onChange={setReps} />
+                    </View>
+                  ) : activeTrackingType === 'time' ? (
+                    <NumberField label={t('routine.durationSeconds')} value={durationSeconds} onChange={setDurationSeconds} />
+                  ) : (
+                    <View style={styles.entryFields}>
+                      <NumberField label={t('routine.durationSeconds')} value={durationSeconds} onChange={setDurationSeconds} />
+                      <NumberField label={t('workout.distanceMeters')} value={distanceMeters} onChange={setDistanceMeters} />
+                    </View>
+                  )}
+
+                  <PressableScale
+                    onPress={logCurrentSet}
+                    disabled={logging}
+                    scaleTo={0.97}
+                    accessibilityRole="button"
+                    style={[styles.logButton, { backgroundColor: theme.accent }]}
+                  >
+                    <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
+                      {t('routine.logSet')}
+                    </ThemedText>
+                  </PressableScale>
+
+                  {isFreeform && (
+                    <PressableScale
+                      onPress={() => setFreeformExercise(null)}
+                      accessibilityRole="button"
+                      style={styles.changeExerciseButton}
+                    >
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {t('workout.freeformChangeExercise')}
+                      </ThemedText>
+                    </PressableScale>
+                  )}
+                </ThemedView>
+              )}
+            </>
           ) : (
             <ThemedView type="backgroundElement" style={[styles.entryCard, { borderColor: theme.border }]}>
-              {isTimeBased ? (
-                <NumberField label={t('routine.durationSeconds')} value={durationSeconds} onChange={setDurationSeconds} />
-              ) : (
-                <View style={styles.entryFields}>
-                  <NumberField label={t('workout.weightKg')} value={weightKg} onChange={setWeightKg} allowDecimal />
-                  <NumberField label={t('workout.reps')} value={reps} onChange={setReps} />
-                </View>
-              )}
-
+              <ThemedText type="small" themeColor="textSecondary" style={styles.freeformHint}>
+                {t('workout.freeformHint')}
+              </ThemedText>
               <PressableScale
-                onPress={logCurrentSet}
-                disabled={logging}
+                onPress={pickFreeformExercise}
                 scaleTo={0.97}
                 accessibilityRole="button"
                 style={[styles.logButton, { backgroundColor: theme.accent }]}
               >
                 <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
-                  {t('routine.logSet')}
+                  {t('workout.freeformPickExercise')}
                 </ThemedText>
               </PressableScale>
             </ThemedView>
@@ -382,6 +516,8 @@ const styles = StyleSheet.create({
   },
   entryFields: { flexDirection: 'row', gap: Spacing.three },
   logButton: { alignItems: 'center', paddingVertical: Spacing.two + 2, borderRadius: Radius.pill },
+  changeExerciseButton: { alignItems: 'center', paddingVertical: Spacing.one },
+  freeformHint: { textAlign: 'center', marginBottom: Spacing.one },
   prBanner: { textAlign: 'center', marginTop: Spacing.three },
   summaryContainer: { alignItems: 'center', justifyContent: 'center', gap: Spacing.four, padding: Spacing.four },
   summaryStat: { alignItems: 'center', gap: Spacing.half },

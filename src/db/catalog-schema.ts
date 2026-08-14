@@ -14,11 +14,9 @@ import type { MovementPattern, TrackingType } from './enrichment-types';
  * instead from `media_id` by MediaProvider (see src/media/media-provider.ts)
  * since every catalog GIF path is exactly `videos/{id}-{mediaId}.gif` and
  * every row shares the same one-sentence credit line. Instructions moved to
- * exerciseInstructions below — full-text search still runs over a single
- * `exercises_fts` virtual table (see catalog-client.ts), which is fine for
- * row-density: an FTS5 table keeps its own storage regardless of what's in
- * `exercises`, so indexing `instructions_en/es` there was never what bloated
- * this table; not representable in the drizzle schema DSL either way.
+ * exerciseInstructions below; full-text search moved to two FTS5 virtual
+ * tables — exercises_fts_name and exercises_fts_prose (see catalog-client.ts
+ * for why they're split) — neither representable in the drizzle schema DSL.
  */
 export const exercises = sqliteTable(
   'exercises',

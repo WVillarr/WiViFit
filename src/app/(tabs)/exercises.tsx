@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, or, sql } from 'drizzle-orm';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Platform, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,11 +15,24 @@ import {
   type EquipmentGroup,
 } from '@/constants/equipment-groups';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { exercises, ExerciseListItem, searchExercises, useCatalogDb } from '@/db';
+import {
+  type Difficulty,
+  exerciseSecondaryMuscles,
+  exercises,
+  ExerciseListItem,
+  MOVEMENT_PATTERNS,
+  type MovementPattern,
+  muscleCounts as muscleCountsTable,
+  searchExercises,
+  secondaryAliasesFor,
+  useCatalogDb,
+} from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { resolveMuscleSynonym } from '@/i18n/muscle-synonyms';
 import { useTranslation } from '@/i18n/use-translation';
 import { useGifPrefetch } from '@/media/use-gif-prefetch';
+
+const DIFFICULTIES: Difficulty[] = [1, 2, 3];
 
 // Ordered roughly by how many exercises target them, so the most useful
 // filters are reachable without scrolling.
@@ -92,11 +105,20 @@ export default function ExercisesScreen() {
   // Multi-select: "what do I have access to" is rarely one answer — a home
   // setup is bodyweight *and* dumbbells *and* a band. Empty means no filter.
   const [equipmentGroups, setEquipmentGroups] = useState<EquipmentGroup[]>([]);
+  // Only meaningful once a muscle is chosen — the effect it has is a body-map
+  // caption number moving (e.g. "151" -> "345"), so it's hidden rather than
+  // disabled when there's nothing for it to change yet.
+  const [includeSecondary, setIncludeSecondary] = useState(false);
+  const [patterns, setPatterns] = useState<MovementPattern[]>([]);
+  const [difficulties, setDifficulties] = useState<Difficulty[]>([]);
+  const [facetsExpanded, setFacetsExpanded] = useState(false);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [resultsError, setResultsError] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const { onViewableItemsChanged } = useGifPrefetch<ResultRow>((item) => item.mediaId);
-  const [muscleCounts, setMuscleCounts] = useState<Record<string, number>>({});
+  const [muscleCountRows, setMuscleCountRows] = useState<
+    Record<string, { primary: number; inclusive: number }>
+  >({});
   const debouncedSearch = useDebouncedValue(searchText, 150);
 
   const equipmentWhere = useMemo(
@@ -107,18 +129,74 @@ export default function ExercisesScreen() {
     [equipmentGroups],
   );
 
-  // Feeds the body map's caption. One aggregate for the whole catalog, held for
-  // the life of the screen — the counts can't change, the catalog is read-only.
+  // Equipment/pattern/difficulty are orthogonal to which muscle is selected,
+  // so they compose with an AND regardless of which of the three query shapes
+  // below is running.
+  const facetWhere = useMemo(
+    () =>
+      and(
+        equipmentWhere,
+        patterns.length > 0 ? inArray(exercises.movementPattern, patterns) : undefined,
+        difficulties.length > 0 ? inArray(exercises.difficulty, difficulties) : undefined,
+      ),
+    [equipmentWhere, patterns, difficulties],
+  );
+
+  // Precomputed at build time (see muscle_counts in catalog-schema.ts) rather
+  // than aggregated here — one read instead of a GROUP BY on every mount, and
+  // it's what makes the secondary toggle's number swap instant instead of a
+  // second round trip.
   useEffect(() => {
-    db.select({ target: exercises.target, count: sql<number>`count(*)` })
-      .from(exercises)
-      .groupBy(exercises.target)
-      .then((rows) => setMuscleCounts(Object.fromEntries(rows.map((r) => [r.target, r.count]))))
+    db.select({
+      target: muscleCountsTable.target,
+      primary: muscleCountsTable.primaryCount,
+      inclusive: muscleCountsTable.inclusiveCount,
+    })
+      .from(muscleCountsTable)
+      .then((rows) =>
+        setMuscleCountRows(
+          Object.fromEntries(rows.map((r) => [r.target, { primary: r.primary, inclusive: r.inclusive }])),
+        ),
+      )
       .catch((err) => console.error('[exercises] count query failed', err));
   }, [db]);
 
+  const displayedMuscleCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(muscleCountRows).map(([target, c]) => [
+          target,
+          includeSecondary ? c.inclusive : c.primary,
+        ]),
+      ),
+    [muscleCountRows, includeSecondary],
+  );
+
   const synonymMuscle = useMemo(() => resolveMuscleSynonym(debouncedSearch), [debouncedSearch]);
   const effectiveMuscle = selectedMuscle ?? synonymMuscle;
+
+  // eq(target, muscle) when the toggle is off; with it on, also match any
+  // exercise where the muscle shows up as a secondary — secondaryAliasesFor
+  // always includes the target itself, so this still degrades to a plain
+  // eq() in the SQL sense, just expressed as an OR.
+  const muscleWhere = useMemo(() => {
+    if (!effectiveMuscle) return undefined;
+    if (!includeSecondary) return eq(exercises.target, effectiveMuscle);
+    return or(
+      eq(exercises.target, effectiveMuscle),
+      exists(
+        db
+          .select({ hit: sql`1` })
+          .from(exerciseSecondaryMuscles)
+          .where(
+            and(
+              eq(exerciseSecondaryMuscles.exerciseId, exercises.id),
+              inArray(exerciseSecondaryMuscles.muscle, secondaryAliasesFor(effectiveMuscle)),
+            ),
+          ),
+      ),
+    );
+  }, [db, effectiveMuscle, includeSecondary]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,30 +211,31 @@ export default function ExercisesScreen() {
         if (ids.length === 0) {
           rows = [];
         } else {
-          // Equipment is filtered in SQL here rather than over `rows`, so a
-          // narrow equipment choice can't be defeated by the FTS limit above.
+          // Every filter is applied in SQL here rather than over `rows`, so a
+          // narrow filter can't be defeated by the FTS LIMIT above — and the
+          // secondary-muscle toggle couldn't be expressed as a JS post-filter
+          // on `target` at all.
           const byId = new Map(
             (
               await db
                 .select(LIST_COLUMNS)
                 .from(exercises)
-                .where(and(inArray(exercises.id, ids), equipmentWhere))
+                .where(and(inArray(exercises.id, ids), facetWhere, muscleWhere))
             ).map((row) => [row.id, row]),
           );
           rows = ids.map((id) => byId.get(id)).filter((r): r is ResultRow => r != null);
-          if (effectiveMuscle) rows = rows.filter((r) => r.target === effectiveMuscle);
         }
       } else if (effectiveMuscle) {
         rows = await db
           .select(LIST_COLUMNS)
           .from(exercises)
-          .where(and(eq(exercises.target, effectiveMuscle), equipmentWhere))
+          .where(and(muscleWhere, facetWhere))
           .limit(200);
       } else {
         rows = await db
           .select(LIST_COLUMNS)
           .from(exercises)
-          .where(equipmentWhere)
+          .where(facetWhere)
           .orderBy(exercises.name)
           .limit(200);
       }
@@ -174,7 +253,7 @@ export default function ExercisesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, debouncedSearch, effectiveMuscle, synonymMuscle, equipmentWhere, retryToken]);
+  }, [db, debouncedSearch, effectiveMuscle, synonymMuscle, facetWhere, muscleWhere, retryToken]);
 
   function selectMuscle(muscle: string) {
     setSelectedMuscle((current) => (current === muscle ? null : muscle));
@@ -185,6 +264,20 @@ export default function ExercisesScreen() {
       current.includes(group) ? current.filter((g) => g !== group) : [...current, group],
     );
   }
+
+  function togglePattern(pattern: MovementPattern) {
+    setPatterns((current) =>
+      current.includes(pattern) ? current.filter((p) => p !== pattern) : [...current, pattern],
+    );
+  }
+
+  function toggleDifficulty(difficulty: Difficulty) {
+    setDifficulties((current) =>
+      current.includes(difficulty) ? current.filter((d) => d !== difficulty) : [...current, difficulty],
+    );
+  }
+
+  const activeFacetCount = patterns.length + difficulties.length;
 
   return (
     <ThemedView style={styles.container}>
@@ -242,6 +335,103 @@ export default function ExercisesScreen() {
           ))}
         </ScrollView>
 
+        <ThemedView style={styles.facetRow}>
+          <PressableScale
+            onPress={() => setFacetsExpanded((v) => !v)}
+            scaleTo={0.96}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: facetsExpanded }}
+            style={[
+              styles.facetToggle,
+              // A tint, not a fill: the accent already marks every selected
+              // chip on this screen, and three solid greens on one row (this
+              // pill, the secondary toggle, a selected muscle chip) would
+              // blur which one means what. See theme.ts — green stays scarce.
+              activeFacetCount > 0
+                ? { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }
+                : { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}
+          >
+            <ThemedText
+              type={activeFacetCount > 0 ? 'smallBold' : 'small'}
+              style={{ color: activeFacetCount > 0 ? theme.accent : theme.text }}
+            >
+              {activeFacetCount > 0
+                ? `${t('exercises.filters')} · ${activeFacetCount}`
+                : t('exercises.filters')}
+              {facetsExpanded ? ' ▾' : ' ▸'}
+            </ThemedText>
+          </PressableScale>
+
+          {/* Its only visible effect is the body-map caption's count moving
+              (e.g. 151 -> 345), so it's hidden rather than disabled until
+              there's a muscle selected for it to act on. */}
+          {effectiveMuscle && (
+            <FilterChip
+              label={t('exercises.includeSecondary')}
+              selected={includeSecondary}
+              onPress={() => setIncludeSecondary((v) => !v)}
+            />
+          )}
+        </ThemedView>
+
+        {facetsExpanded && (
+          <ThemedView style={styles.facetPanel}>
+            <ThemedText type="eyebrow" themeColor="textSecondary" style={styles.filterLabel}>
+              {t('exercises.patternLabel').toUpperCase()}
+            </ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipRow}
+              contentContainerStyle={styles.chipRowContent}
+            >
+              {MOVEMENT_PATTERNS.map((pattern) => (
+                <FilterChip
+                  key={pattern}
+                  label={t(`movementPatterns.${pattern}`)}
+                  selected={patterns.includes(pattern)}
+                  onPress={() => togglePattern(pattern)}
+                />
+              ))}
+            </ScrollView>
+
+            <ThemedText type="eyebrow" themeColor="textSecondary" style={styles.filterLabel}>
+              {t('exercises.difficultyLabel').toUpperCase()}
+            </ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipRow}
+              contentContainerStyle={styles.chipRowContent}
+            >
+              {DIFFICULTIES.map((difficulty) => (
+                <FilterChip
+                  key={difficulty}
+                  label={t(`difficulty.${difficulty}`)}
+                  selected={difficulties.includes(difficulty)}
+                  onPress={() => toggleDifficulty(difficulty)}
+                />
+              ))}
+            </ScrollView>
+
+            {activeFacetCount > 0 && (
+              <PressableScale
+                onPress={() => {
+                  setPatterns([]);
+                  setDifficulties([]);
+                }}
+                scaleTo={0.94}
+                style={styles.clearFacetsButton}
+              >
+                <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                  {t('exercises.clearFilters')}
+                </ThemedText>
+              </PressableScale>
+            )}
+          </ThemedView>
+        )}
+
         {filterMode === 'list' ? (
           // A plain ScrollView, not a FlatList: the filter set is 19 fixed text
           // pills, so windowing them costs more per scroll frame than simply
@@ -295,7 +485,7 @@ export default function ExercisesScreen() {
                 <BodyMapPicker
                   selectedMuscle={selectedMuscle}
                   onSelectMuscle={setSelectedMuscle}
-                  counts={muscleCounts}
+                  counts={displayedMuscleCounts}
                 />
 
                 {/* Cardio has no region on the figure, so it needs its own way in. */}
@@ -433,6 +623,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three + Spacing.half,
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  facetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.three,
+  },
+  facetToggle: {
+    minHeight: ChipHeight,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three + Spacing.half,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  facetPanel: {
+    marginTop: Spacing.two,
+    gap: Spacing.half,
+  },
+  clearFacetsButton: {
+    alignSelf: 'flex-end',
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.one,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
   },
   // Sits inside the results list, so its horizontal insets come from
   // `listContent` rather than its own margins.

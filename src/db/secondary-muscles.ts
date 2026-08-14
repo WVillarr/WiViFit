@@ -61,3 +61,35 @@ export function secondaryPlateTargets(muscles: string[]): string[] {
     .map((muscle) => (muscle in SECONDARY_TO_TARGET ? SECONDARY_TO_TARGET[muscle] : muscle))
     .filter((target): target is string => target != null);
 }
+
+/**
+ * Inverse of SECONDARY_TO_TARGET: the `exercise_secondary_muscles.muscle`
+ * values that count as work on a given `exercises.target` — what the
+ * "include secondary muscles" toggle in exercises.tsx filters on.
+ *
+ * Nine of the 40 secondary slugs (`biceps`, `calves`, `forearms`, `glutes`,
+ * `hamstrings`, `lats`, `traps`, `triceps`, `upper_back`) are target slugs
+ * already, so they never appear as *keys* of SECONDARY_TO_TARGET above — an
+ * inversion built only from that map's keys would lose them, and the toggle
+ * would do nothing for `glutes`, the single largest muscle group in the
+ * catalog. secondaryAliasesFor seeds every target with itself first, which
+ * is what keeps that from happening — it doesn't rely on this map having an
+ * entry at all.
+ */
+const TARGET_TO_SECONDARY: Record<string, string[]> = (() => {
+  const map: Record<string, string[]> = {};
+  for (const [secondary, target] of Object.entries(SECONDARY_TO_TARGET)) {
+    if (target == null) continue;
+    (map[target] ??= []).push(secondary);
+  }
+  return map;
+})();
+
+/**
+ * `exercise_secondary_muscles.muscle` values that should count as working
+ * `target`, for the SQL `IN (...)` behind the secondary-muscle toggle. Always
+ * includes `target` itself — see the module doc comment above.
+ */
+export function secondaryAliasesFor(target: string): string[] {
+  return [target, ...(TARGET_TO_SECONDARY[target] ?? [])];
+}

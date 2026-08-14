@@ -69,10 +69,12 @@
     "lint": "expo lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "jest --watchAll",
+    "test": "jest",
+    "test:watch": "jest --watchAll",
     "build:catalog": "tsx scripts/build-catalog.ts",
     "build:media": "tsx scripts/download-media.ts",
-    "build:brand": "tsx scripts/build-brand-assets.ts"
+    "build:brand": "tsx scripts/build-brand-assets.ts",
+    "verify:catalog": "tsx scripts/verify-catalog.ts"
   },
   "private": true,
   "jest": {

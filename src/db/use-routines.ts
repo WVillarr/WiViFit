@@ -20,6 +20,7 @@ export interface DraftExercise {
   repRangeMin: number | null;
   repRangeMax: number | null;
   targetDurationSeconds: number | null;
+  targetDistanceMeters: number | null;
   restSeconds: number;
 }
 
@@ -35,34 +36,18 @@ export interface RoutineDraft {
 }
 
 /**
- * Persists a full routine as one write path: the routine row, then each day,
- * then each exercise — every insert goes through `writeAndEnqueue` so the
- * outbox has a row for each one (see src/sync/outbox.ts). Not a single
- * `.transaction()` call wrapping all of it: the expo-sqlite Drizzle driver's
- * transaction API is sync-only and breaks on web (see the comment on
- * writeAndEnqueue) — the small risk of a crash mid-save leaving a partial
- * routine is accepted for the same reason it is there.
+ * Inserts a draft's days and their exercises under an already-existing
+ * `routineId` — the shared tail of both `createRoutine` (fresh routine row)
+ * and `updateRoutine` (existing routine row, old days tombstoned first).
+ * Every insert goes through `writeAndEnqueue` so the outbox has a row for
+ * each one (see src/sync/outbox.ts). Not a single `.transaction()` call
+ * wrapping all of it: the expo-sqlite Drizzle driver's transaction API is
+ * sync-only and breaks on web (see the comment on writeAndEnqueue) — the
+ * small risk of a crash mid-save leaving a partial routine is accepted for
+ * the same reason it is there.
  */
-export async function createRoutine(userDb: UserDb, draft: RoutineDraft): Promise<string> {
-  const routineId = newId();
-  const now = new Date().toISOString();
-
-  const routineRow = {
-    id: routineId,
-    name: draft.name,
-    splitType: null,
-    daysPerWeek: draft.days.length,
-    isActive: false,
-    source: 'manual' as const,
-    createdAt: now,
-    updatedAt: now,
-    deletedAt: null,
-  };
-  await writeAndEnqueue(userDb, 'routines', routineId, 'insert', routineRow, () =>
-    userDb.insert(routines).values(routineRow),
-  );
-
-  for (const [dayIndex, day] of draft.days.entries()) {
+async function insertDays(userDb: UserDb, routineId: string, days: DraftDay[]): Promise<void> {
+  for (const [dayIndex, day] of days.entries()) {
     const dayId = newId();
     const dayRow = {
       id: dayId,
@@ -87,6 +72,7 @@ export async function createRoutine(userDb: UserDb, draft: RoutineDraft): Promis
         repRangeMin: ex.repRangeMin,
         repRangeMax: ex.repRangeMax,
         targetDurationSeconds: ex.targetDurationSeconds,
+        targetDistanceMeters: ex.targetDistanceMeters,
         restSeconds: ex.restSeconds,
         deletedAt: null,
       };
@@ -95,8 +81,82 @@ export async function createRoutine(userDb: UserDb, draft: RoutineDraft): Promis
       );
     }
   }
+}
 
+export async function createRoutine(userDb: UserDb, draft: RoutineDraft): Promise<string> {
+  const routineId = newId();
+  const now = new Date().toISOString();
+
+  const routineRow = {
+    id: routineId,
+    name: draft.name,
+    splitType: null,
+    daysPerWeek: draft.days.length,
+    isActive: false,
+    source: 'manual' as const,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+  };
+  await writeAndEnqueue(userDb, 'routines', routineId, 'insert', routineRow, () =>
+    userDb.insert(routines).values(routineRow),
+  );
+
+  await insertDays(userDb, routineId, draft.days);
   return routineId;
+}
+
+/**
+ * Editing replaces the day/exercise structure wholesale rather than diffing
+ * row by row: every existing day and exercise for this routine is
+ * tombstoned, then the draft's days are inserted fresh under the same
+ * `routineId` (see insertDays above). This never touches history — past
+ * `workout_sessions`/`session_sets` reference a `routineDayId`/`exerciseId`
+ * by value, not through a live join filtered on `deletedAt`, so a completed
+ * workout still reads back correctly after the routine that generated it
+ * has since been edited or its days replaced.
+ */
+export async function updateRoutine(userDb: UserDb, routineId: string, draft: RoutineDraft): Promise<void> {
+  const now = new Date().toISOString();
+
+  const existingDays = await userDb
+    .select({ id: routineDays.id })
+    .from(routineDays)
+    .where(and(eq(routineDays.routineId, routineId), isNull(routineDays.deletedAt)));
+
+  for (const day of existingDays) {
+    const existingExercises = await userDb
+      .select({ id: routineExercises.id })
+      .from(routineExercises)
+      .where(and(eq(routineExercises.routineDayId, day.id), isNull(routineExercises.deletedAt)));
+
+    for (const ex of existingExercises) {
+      await writeAndEnqueue(userDb, 'routine_exercises', ex.id, 'update', { deletedAt: now }, () =>
+        userDb.update(routineExercises).set({ deletedAt: now }).where(eq(routineExercises.id, ex.id)),
+      );
+    }
+    await writeAndEnqueue(userDb, 'routine_days', day.id, 'update', { deletedAt: now }, () =>
+      userDb.update(routineDays).set({ deletedAt: now }).where(eq(routineDays.id, day.id)),
+    );
+  }
+
+  const routinePatch = { name: draft.name, daysPerWeek: draft.days.length, updatedAt: now };
+  await writeAndEnqueue(userDb, 'routines', routineId, 'update', routinePatch, () =>
+    userDb.update(routines).set(routinePatch).where(eq(routines.id, routineId)),
+  );
+
+  await insertDays(userDb, routineId, draft.days);
+}
+
+/** Tombstone, never a real DELETE — see deletedAt's doc comment on `routines`
+ *  in user-schema.ts. Only the routine row itself: its days/exercises are
+ *  never read except through a route that already requires a non-deleted
+ *  parent, so leaving them alive is harmless and this stays a single write. */
+export async function deleteRoutine(userDb: UserDb, routineId: string): Promise<void> {
+  const deletedAt = new Date().toISOString();
+  await writeAndEnqueue(userDb, 'routines', routineId, 'update', { deletedAt }, () =>
+    userDb.update(routines).set({ deletedAt }).where(eq(routines.id, routineId)),
+  );
 }
 
 /** Rows for "my routines" — not-deleted, most recently updated first. */
