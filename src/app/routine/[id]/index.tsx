@@ -1,13 +1,14 @@
 import { inArray } from 'drizzle-orm';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon, type IconName } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { CardShadow, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import {
   deleteRoutine,
   exerciseName,
@@ -19,9 +20,20 @@ import {
   useUserDb,
   type ExerciseRow as ExerciseRowType,
   type RoutineDayWithExercises,
+  type RoutineExerciseRow,
 } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
+
+/** Same three-way split as ExerciseEditorRow's field branch — which target
+ *  field is populated already says how the set is measured (see
+ *  defaultsFor() in routine-draft-editor.tsx), so the icon reads it the same
+ *  way rather than needing the catalog's trackingType round-trip. */
+function trackingIconFor(ex: RoutineExerciseRow): IconName {
+  if (ex.targetDistanceMeters != null) return 'route';
+  if (ex.targetDurationSeconds != null) return 'clock';
+  return 'dumbbell';
+}
 
 export default function RoutineDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -55,9 +67,7 @@ export default function RoutineDetailScreen() {
     setStartingDayId(day.id);
     try {
       const sessionId = await startSession(userDb, day.id);
-      // `as Href`: same typed-routes gap as routine/index.tsx's push, for
-      // the equally-freshly-added `workout/[sessionId]` route.
-      router.push(`/workout/${sessionId}` as Href);
+      router.push(`/workout/${sessionId}`);
     } catch (err) {
       console.error('[routine/id] start session failed', err);
     } finally {
@@ -66,7 +76,7 @@ export default function RoutineDetailScreen() {
   }
 
   function onEdit() {
-    router.push(`/routine/${id}/edit` as Href);
+    router.push(`/routine/${id}/edit`);
   }
 
   function onDelete() {
@@ -80,7 +90,7 @@ export default function RoutineDetailScreen() {
           setDeleting(true);
           try {
             await deleteRoutine(userDb, routine.id);
-            router.replace('/routine/index' as Href);
+            router.replace('/routine');
           } catch (err) {
             console.error('[routine/id] delete failed', err);
             setDeleting(false);
@@ -108,9 +118,7 @@ export default function RoutineDetailScreen() {
             </ThemedText>
             <View style={styles.titleActions}>
               <PressableScale onPress={onEdit} accessibilityRole="button" accessibilityLabel={t('routine.edit')}>
-                <ThemedText type="small" style={{ color: theme.accent }}>
-                  {t('routine.edit')}
-                </ThemedText>
+                <Icon name="pencil" size={18} color={theme.accent} />
               </PressableScale>
               <PressableScale
                 onPress={onDelete}
@@ -118,9 +126,7 @@ export default function RoutineDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('routine.delete')}
               >
-                <ThemedText type="small" themeColor="textSecondary">
-                  {t('routine.delete')}
-                </ThemedText>
+                <Icon name="trash" size={18} color={theme.textSecondary} />
               </PressableScale>
             </View>
           </View>
@@ -140,6 +146,7 @@ export default function RoutineDetailScreen() {
                   accessibilityRole="button"
                   style={[styles.startButton, { backgroundColor: theme.accent }]}
                 >
+                  <Icon name="play" size={12} color={theme.onAccent} />
                   <ThemedText type="small" style={{ color: theme.onAccent }}>
                     {t('routine.startWorkout')}
                   </ThemedText>
@@ -150,6 +157,7 @@ export default function RoutineDetailScreen() {
                 const catalogExercise = exerciseById.get(ex.exerciseId);
                 return (
                   <View key={ex.id} style={styles.exerciseRow}>
+                    <Icon name={trackingIconFor(ex)} size={15} color={theme.textSecondary} />
                     <ThemedText type="small" numberOfLines={1} style={styles.exerciseName}>
                       {catalogExercise ? exerciseName(catalogExercise, locale) : ex.exerciseId}
                     </ThemedText>
@@ -186,9 +194,17 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.three,
     gap: Spacing.two,
+    ...CardShadow,
   },
   dayHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  startButton: { paddingHorizontal: Spacing.two + 2, paddingVertical: Spacing.one + 2, borderRadius: Radius.pill },
-  exerciseRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two },
+  startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: Spacing.one + 2,
+    borderRadius: Radius.pill,
+  },
+  exerciseRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   exerciseName: { flex: 1 },
 });

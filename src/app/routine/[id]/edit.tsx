@@ -1,5 +1,5 @@
 import { inArray } from 'drizzle-orm';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -106,7 +106,7 @@ function RoutineEditForm({
     setSaving(true);
     try {
       await updateRoutine(userDb, routineId, { name: draft.name.trim(), days: draft.days });
-      router.replace(`/routine/${routineId}` as Href);
+      router.replace(`/routine/${routineId}`);
     } catch (err) {
       console.error('[routine/edit] save failed', err);
       setSaving(false);

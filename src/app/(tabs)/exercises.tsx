@@ -476,26 +476,36 @@ export default function ExercisesScreen() {
           // The plate rides along as a list header so it scrolls out of the
           // way. Pinned above the list it kept ~400dp of the screen to itself,
           // leaving room for barely two results.
+          //
+          // Hidden rather than unmounted in list mode. The pager holds both the
+          // front and back plates, which between them are ~160 <Path> views,
+          // each with its own press handler; tearing that down and building it
+          // again is a single synchronous pass long enough to visibly freeze
+          // the screen on the way back to the figure. `display: 'none'` drops
+          // the subtree out of layout, so the hidden plate takes up no space
+          // and costs nothing to reveal.
           ListHeaderComponent={
-            filterMode === 'body' ? (
-              <ThemedView
-                type="backgroundElement"
-                style={[styles.bodyCard, { borderColor: theme.border }]}
-              >
-                <BodyMapPicker
-                  selectedMuscle={selectedMuscle}
-                  onSelectMuscle={setSelectedMuscle}
-                  counts={displayedMuscleCounts}
-                />
+            <ThemedView
+              type="backgroundElement"
+              style={[
+                styles.bodyCard,
+                { borderColor: theme.border },
+                filterMode !== 'body' && styles.bodyCardHidden,
+              ]}
+            >
+              <BodyMapPicker
+                selectedMuscle={selectedMuscle}
+                onSelectMuscle={setSelectedMuscle}
+                counts={displayedMuscleCounts}
+              />
 
-                {/* Cardio has no region on the figure, so it needs its own way in. */}
-                <FilterChip
-                  label={t(`muscles.${CARDIO_MUSCLE}`)}
-                  selected={selectedMuscle === CARDIO_MUSCLE}
-                  onPress={() => selectMuscle(CARDIO_MUSCLE)}
-                />
-              </ThemedView>
-            ) : null
+              {/* Cardio has no region on the figure, so it needs its own way in. */}
+              <FilterChip
+                label={t(`muscles.${CARDIO_MUSCLE}`)}
+                selected={selectedMuscle === CARDIO_MUSCLE}
+                onPress={() => selectMuscle(CARDIO_MUSCLE)}
+              />
+            </ThemedView>
           }
           ListEmptyComponent={
             resultsError ? (
@@ -658,6 +668,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.two,
   },
+  bodyCardHidden: { display: 'none' },
   list: { flex: 1 },
   listContent: {
     paddingHorizontal: Spacing.three,

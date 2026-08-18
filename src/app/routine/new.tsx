@@ -1,4 +1,4 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,7 +28,7 @@ export default function NewRoutineScreen() {
     const routineDraft: RoutineDraft = { name: draft.name.trim(), days: draft.days };
     try {
       await createRoutine(userDb, routineDraft);
-      router.replace('/routine/index' as Href);
+      router.replace('/routine');
     } catch (err) {
       console.error('[routine/new] save failed', err);
       setSaving(false);

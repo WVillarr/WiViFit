@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { PixelRatio, StyleSheet } from 'react-native';
 
+import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -93,9 +94,7 @@ export function ExerciseRow({
           {t(`muscles.${item.target}`)}
         </ThemedText>
       </ThemedView>
-      <ThemedText type="small" style={{ color: theme.accent }}>
-        ›
-      </ThemedText>
+      <Icon name="chevron" size={16} color={theme.textSecondary} />
     </PressableScale>
   );
 }

@@ -1,6 +1,6 @@
 import { sql, eq } from 'drizzle-orm';
 import { Image } from 'expo-image';
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet } from 'react-native';
 import Animated, {
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/error-state';
 import { GradientSurface } from '@/components/gradient-surface';
+import { Icon, type IconName } from '@/components/icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -133,9 +134,7 @@ export default function HomeScreen() {
     setStartingFreeform(true);
     try {
       const sessionId = await startSession(userDb, null);
-      // `as Href`: generated-types staleness, not a real route error — see
-      // the same cast on the routines banner below.
-      router.push(`/workout/${sessionId}` as Href);
+      router.push(`/workout/${sessionId}`);
     } catch (err) {
       console.error('[home] start freeform session failed', err);
     } finally {
@@ -156,130 +155,160 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ThemedView style={styles.header}>
-          <ThemedText type="eyebrow" themeColor="textSecondary">
-            {greeting.toUpperCase()}
-          </ThemedText>
-          <ThemedText type="subtitle" style={styles.motivation}>
-            {t(`home.motivation${motivationIndex}`)}
-          </ThemedText>
-        </ThemedView>
-
-        <Animated.View style={pulseStyle}>
-          <PressableScale
-            onPress={onTrainNow}
-            scaleTo={0.98}
-            accessibilityRole="button"
-            accessibilityLabel={`${t('home.ctaLabel')}. ${t('home.ctaHint')}`}
-            style={styles.ctaWrap}
-          >
-            <GradientSurface style={styles.ctaCard}>
-              <ThemedView style={styles.ctaTextGroup}>
-                <ThemedText type="subtitle" style={{ color: theme.onAccent }}>
-                  {t('home.ctaLabel')}
-                </ThemedText>
-                <ThemedText style={[styles.ctaSubtitle, { color: theme.onAccent }]}>
-                  {t('home.ctaHint')}
-                </ThemedText>
-              </ThemedView>
-              <ThemedView style={[styles.ctaBadge, { backgroundColor: theme.onAccentWash }]}>
-                <ThemedText style={[styles.ctaArrow, { color: theme.onAccent }]}>→</ThemedText>
-              </ThemedView>
-            </GradientSurface>
-          </PressableScale>
-        </Animated.View>
-
-        <ThemedView style={styles.quickStartRow}>
-          <PressableScale
-            // `as Href`: generated-types staleness, not a real route error —
-            // see the same cast in routine/index.tsx.
-            onPress={() => router.push('/routine/index' as Href)}
-            scaleTo={0.98}
-            accessibilityRole="button"
-            accessibilityLabel={t('routine.listTitle')}
-            style={[styles.routinesBanner, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
-          >
-            <ThemedText type="smallBold">{t('routine.listTitle')}</ThemedText>
-            <ThemedText type="small" style={{ color: theme.accent }}>
-              ›
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <ThemedView style={styles.header}>
+            <ThemedText type="eyebrow" themeColor="textSecondary">
+              {greeting.toUpperCase()}
             </ThemedText>
-          </PressableScale>
-
-          <PressableScale
-            onPress={onStartFreeform}
-            disabled={startingFreeform}
-            scaleTo={0.98}
-            accessibilityRole="button"
-            accessibilityLabel={t('routine.freeformStart')}
-            style={[styles.routinesBanner, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
-          >
-            <ThemedText type="smallBold">{t('routine.freeformStart')}</ThemedText>
-            <ThemedText type="small" style={{ color: theme.accent }}>
-              ›
+            <ThemedText type="subtitle" style={styles.motivation}>
+              {t(`home.motivation${motivationIndex}`)}
             </ThemedText>
-          </PressableScale>
-        </ThemedView>
+          </ThemedView>
 
-        {favoriteItems.length > 0 && (
-          <ExerciseShelf title={t('home.favoritesTitle')} items={favoriteItems} />
-        )}
-        {recentItems.length > 0 && (
-          <ExerciseShelf title={t('home.recentTitle')} items={recentItems} />
-        )}
+          <Animated.View style={pulseStyle}>
+            <PressableScale
+              onPress={onTrainNow}
+              scaleTo={0.98}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('home.ctaLabel')}. ${t('home.ctaHint')}`}
+              style={styles.ctaWrap}
+            >
+              <GradientSurface style={styles.ctaCard}>
+                <ThemedView style={styles.ctaTextGroup}>
+                  <ThemedText type="subtitle" style={{ color: theme.onAccent }}>
+                    {t('home.ctaLabel')}
+                  </ThemedText>
+                  <ThemedText style={[styles.ctaSubtitle, { color: theme.onAccent }]}>
+                    {t('home.ctaHint')}
+                  </ThemedText>
+                </ThemedView>
+                <ThemedView style={[styles.ctaBadge, { backgroundColor: theme.onAccentWash }]}>
+                  <Icon name="chevron" size={20} color={theme.onAccent} strokeWidth={2} />
+                </ThemedView>
+              </GradientSurface>
+            </PressableScale>
+          </Animated.View>
 
-        <ThemedText type="sectionTitle" style={styles.sectionLabel}>
-          {t('home.quickAccessTitle')}
-        </ThemedText>
-        {/* Six fixed pills and eight cards below — both rows render in full
+          <ThemedView style={styles.quickStartRow}>
+            <QuickStartTile
+              icon="dumbbell"
+              label={t('routine.listTitle')}
+              // `/routine`, not `/routine/index`: index files don't contribute
+              // a path segment, so the latter has no static match and falls
+              // through to `/routine/[id]` with id="index" — a detail screen
+              // for a routine that doesn't exist, which renders blank forever.
+              onPress={() => router.push('/routine')}
+            />
+            <QuickStartTile
+              icon="play"
+              label={t('routine.freeformStart')}
+              onPress={onStartFreeform}
+              disabled={startingFreeform}
+            />
+          </ThemedView>
+
+          {favoriteItems.length > 0 && (
+            <ExerciseShelf title={t('home.favoritesTitle')} items={favoriteItems} />
+          )}
+          {recentItems.length > 0 && (
+            <ExerciseShelf title={t('home.recentTitle')} items={recentItems} />
+          )}
+
+          <ThemedText type="sectionTitle" style={styles.sectionLabel}>
+            {t('home.quickAccessTitle')}
+          </ThemedText>
+          {/* Six fixed pills and eight cards below — both rows render in full
             either way, so a ScrollView drops the virtualization bookkeeping
             without changing what's on screen. */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipRow}
-          contentContainerStyle={styles.chipRowContent}
-        >
-          {QUICK_MUSCLES.map((muscle) => (
-            <MuscleChip
-              key={muscle}
-              muscle={muscle}
-              selected={activeMuscle === muscle}
-              onPress={onChipPress}
-            />
-          ))}
-        </ScrollView>
-
-        <ThemedView style={styles.sectionHeaderRow}>
-          <ThemedText type="sectionTitle">
-            {activeMuscle ? t(`muscles.${activeMuscle}`) : t('home.suggestedTitle')}
-          </ThemedText>
-          <PressableScale
-            onPress={onShuffle}
-            scaleTo={0.92}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={t('home.shuffle')}
-          >
-            <ShuffleLabel />
-          </PressableScale>
-        </ThemedView>
-
-        {suggestedError ? (
-          <ErrorState onRetry={() => fetchSuggested(activeMuscle)} />
-        ) : (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.suggestedRow}
-            contentContainerStyle={styles.suggestedRowContent}
+            style={styles.chipRow}
+            contentContainerStyle={styles.chipRowContent}
           >
-            {suggested.map((item, index) => (
-              <SuggestedCard key={item.id} item={item} index={index} />
+            {QUICK_MUSCLES.map((muscle) => (
+              <MuscleChip
+                key={muscle}
+                muscle={muscle}
+                selected={activeMuscle === muscle}
+                onPress={onChipPress}
+              />
             ))}
           </ScrollView>
-        )}
+
+          <ThemedView style={styles.sectionHeaderRow}>
+            <ThemedText type="sectionTitle">
+              {activeMuscle ? t(`muscles.${activeMuscle}`) : t('home.suggestedTitle')}
+            </ThemedText>
+            <PressableScale
+              onPress={onShuffle}
+              scaleTo={0.92}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={t('home.shuffle')}
+            >
+              <ShuffleLabel />
+            </PressableScale>
+          </ThemedView>
+
+          {suggestedError ? (
+            <ErrorState onRetry={() => fetchSuggested(activeMuscle)} />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.suggestedRow}
+              contentContainerStyle={styles.suggestedRowContent}
+            >
+              {suggested.map((item, index) => (
+                <SuggestedCard key={item.id} item={item} index={index} />
+              ))}
+            </ScrollView>
+          )}
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+/** Icon over label rather than a label-and-chevron row: at half the content
+ *  width these two sit around 165dp, which "Empezar un entrenamiento" fills
+ *  on its own — stacking gives the label the whole width instead of making it
+ *  share a line with a chevron. */
+function QuickStartTile({
+  icon,
+  label,
+  onPress,
+  disabled,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <PressableScale
+      onPress={onPress}
+      disabled={disabled}
+      scaleTo={0.97}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={[
+        styles.quickStartTile,
+        { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+      ]}
+    >
+      <ThemedView style={[styles.quickStartIcon, { backgroundColor: theme.accentSoft }]}>
+        <Icon name={icon} size={18} color={theme.accent} strokeWidth={1.6} />
+      </ThemedView>
+      <ThemedText type="smallBold" numberOfLines={2}>
+        {label}
+      </ThemedText>
+    </PressableScale>
   );
 }
 
@@ -360,11 +389,17 @@ function SuggestedCard({ item, index }: { item: ExerciseListItem; index: number 
         onPress={() => router.push(`/exercise/${item.id}`)}
         accessibilityRole="button"
         accessibilityLabel={`${exerciseName(item, locale)}, ${t(`muscles.${item.target}`)}`}
-        style={[styles.suggestedCard, { backgroundColor: theme.backgroundElement }]}
+        style={[
+          styles.suggestedCard,
+          { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+        ]}
       >
         <Image
           source={mediaProvider.getThumbnail(item.id)}
-          style={[styles.suggestedThumbnail, { backgroundColor: theme.backgroundSelected }]}
+          style={[
+            styles.suggestedThumbnail,
+            { backgroundColor: theme.backgroundSelected, borderColor: theme.border },
+          ]}
           contentFit="cover"
           // Shuffling swaps the data under the recycled row — see ExerciseRow.
           recyclingKey={item.id}
@@ -387,6 +422,7 @@ function SuggestedCard({ item, index }: { item: ExerciseListItem; index: number 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  scrollContent: { paddingBottom: BottomTabInset + Spacing.four },
   header: {
     paddingLeft: Spacing.three,
     // Keeps a long motivation line off the right edge instead of running into it.
@@ -419,7 +455,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ctaArrow: { fontSize: 22, lineHeight: 26 },
   quickStartRow: {
     flexDirection: 'row',
     gap: Spacing.two,
@@ -427,14 +462,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
     backgroundColor: 'transparent',
   },
-  routinesBanner: {
+  quickStartTile: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: Spacing.two,
     padding: Spacing.three,
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  quickStartIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionLabel: {
     marginHorizontal: Spacing.three,
@@ -457,9 +497,12 @@ const styles = StyleSheet.create({
     marginTop: Spacing.five,
   },
   suggestedRow: { flexGrow: 0, marginTop: Spacing.two },
+  // No bottom padding: every shelf on this screen uses this row, and the
+  // vertical ScrollView wrapping them already carries the tab-bar inset once
+  // (see scrollContent). Repeating it here left a tab bar's worth of dead
+  // space under each shelf.
   suggestedRowContent: {
     paddingHorizontal: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.three,
   },
   suggestedCard: {
@@ -470,9 +513,17 @@ const styles = StyleSheet.create({
     // on the card reads as a deliberate specimen tile instead of a bright
     // rectangle bleeding into the navy.
     padding: Spacing.one,
+    borderWidth: StyleSheet.hairlineWidth,
     ...CardShadow,
   },
-  suggestedThumbnail: { width: '100%', height: 124, borderRadius: Radius.md },
+  // Bordered as well as tinted: the plate's own background is white, which on
+  // the light theme's white card would otherwise have no edge at all.
+  suggestedThumbnail: {
+    width: '100%',
+    height: 124,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   suggestedMeta: {
     backgroundColor: 'transparent',
     paddingHorizontal: Spacing.one,

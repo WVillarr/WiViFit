@@ -1,14 +1,16 @@
 import { inArray } from 'drizzle-orm';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/icon';
 import { NumberField } from '@/components/number-field';
 import { PressableScale } from '@/components/pressable-scale';
+import { ProgressRing } from '@/components/progress-ring';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { CardShadow, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import {
   exerciseName,
   exercises,
@@ -53,25 +55,35 @@ const FREEFORM_REST_SECONDS = 90;
  * render (render must stay a pure function of props/state) and never as a
  * synchronous call in the effect body itself (React flags that as a
  * cascading-render risk) — only the deferred, periodic callback sets state.
- * That means the very first paint after a rest starts can lag up to 250ms
- * behind before this fires once; imperceptible against a multi-second rest
- * period, and simpler than fighting either rule for that one frame.
- * `restEndsAt != null` (a plain prop, not this hook's state) is what the
- * caller gates visibility on, so a stale leftover number here never shows
- * once rest has actually ended.
+ *
+ * The first tick is up to 250ms away, and a tick is stamped with the window
+ * it measured so the gap can't be filled with the *previous* rest's leftover
+ * number: until this window's own tick lands, the full `totalSeconds` is the
+ * honest answer. Without that stamp the ring opens a fresh rest at the old
+ * rest's fraction (a 90s window skipped with 45s left would paint the next
+ * one half-drained, then sweep back up to full), and a window that ran to
+ * zero would leave 0 behind — dropping below the caller's `> 0` visibility
+ * gate and flashing the entry card for a beat before rest appears.
+ *
+ * Stamp and value are two parallel primitives rather than one `{ endsAt,
+ * seconds }` object, matching the same trade-off `restEndsAt` /
+ * `restExerciseLabel` make in the component below; both land in one batch
+ * from the same callback, so render never sees a half-updated pair.
  */
-function useRestCountdown(restEndsAt: number | null): number {
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
+function useRestCountdown(restEndsAt: number | null, totalSeconds: number): number {
+  const [tickEndsAt, setTickEndsAt] = useState<number | null>(null);
+  const [tickSeconds, setTickSeconds] = useState(0);
 
   useEffect(() => {
     if (restEndsAt == null) return;
     const interval = setInterval(() => {
-      setRemainingSeconds(Math.max(0, Math.round((restEndsAt - Date.now()) / 1000)));
+      setTickSeconds(Math.max(0, Math.round((restEndsAt - Date.now()) / 1000)));
+      setTickEndsAt(restEndsAt);
     }, 250);
     return () => clearInterval(interval);
   }, [restEndsAt]);
 
-  return remainingSeconds;
+  return tickEndsAt === restEndsAt ? tickSeconds : totalSeconds;
 }
 
 interface SetProgress {
@@ -101,6 +113,10 @@ export default function WorkoutScreen() {
   // Date.now() read as a memoization hazard; two primitive setState calls
   // sidestep that without losing the fix.
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  // The rest window's original length, captured alongside restEndsAt — the
+  // ring needs a denominator to turn "seconds left" into a 0-1 fraction, and
+  // restEndsAt alone only gives an absolute end time.
+  const [totalRestSeconds, setTotalRestSeconds] = useState(0);
   const [restExerciseLabel, setRestExerciseLabel] = useState('');
   const [newRecords, setNewRecords] = useState<PersonalRecordRow[]>([]);
   const [finished, setFinished] = useState(false);
@@ -117,7 +133,7 @@ export default function WorkoutScreen() {
   const [freeformSetIndex, setFreeformSetIndex] = useState(0);
   const [freeformLoggedCount, setFreeformLoggedCount] = useState(0);
 
-  const restSecondsRemaining = useRestCountdown(restEndsAt);
+  const restSecondsRemaining = useRestCountdown(restEndsAt, totalRestSeconds);
   const currentRoutineExercise: RoutineExerciseRow | undefined = routineExercises[progress.exerciseIndex];
   const currentExercise = currentRoutineExercise
     ? catalogByExerciseId.get(currentRoutineExercise.exerciseId)
@@ -219,9 +235,7 @@ export default function WorkoutScreen() {
       setDurationSeconds(0);
       setDistanceMeters(0);
     });
-    // `as Href`: generated-types staleness, not a real route error — see the
-    // same cast in routine/index.tsx.
-    router.push('/routine/pick-exercise' as Href);
+    router.push('/routine/pick-exercise');
   }
 
   async function logCurrentSet() {
@@ -247,6 +261,7 @@ export default function WorkoutScreen() {
         // same ordering reason as the routine branch's comment.
         setRestExerciseLabel(exerciseName(activeExercise, locale));
         setRestEndsAt(computeRestEndsAt(FREEFORM_REST_SECONDS));
+        setTotalRestSeconds(FREEFORM_REST_SECONDS);
         setFreeformSetIndex((i) => i + 1);
         setFreeformLoggedCount((c) => c + 1);
         return;
@@ -257,6 +272,7 @@ export default function WorkoutScreen() {
         // currentExercise to the next one in the same batch.
         setRestExerciseLabel(currentExercise ? exerciseName(currentExercise, locale) : '');
         setRestEndsAt(computeRestEndsAt(currentRoutineExercise!.restSeconds));
+        setTotalRestSeconds(currentRoutineExercise!.restSeconds);
       }
 
       if (!isLastSetOfExercise) {
@@ -332,7 +348,7 @@ export default function WorkoutScreen() {
           <View style={styles.topRow}>
             <ThemedText type="small" themeColor="textSecondary">
               {isFreeform
-                ? t('workout.freeformSetsLogged', { count: freeformLoggedCount })
+                ? t('routine.freeformSetsLogged', { count: freeformLoggedCount })
                 : `${t('routine.sets')} ${setsSummary}`}
             </ThemedText>
             <PressableScale onPress={confirmFinishEarly} accessibilityRole="button">
@@ -344,7 +360,19 @@ export default function WorkoutScreen() {
 
           {activeExercise ? (
             <>
-              <ThemedText type="sectionTitle" style={styles.exerciseTitle}>
+              {!isFreeform && (
+                <ThemedText type="eyebrow" themeColor="textSecondary" style={styles.exerciseEyebrow}>
+                  {t('workout.exerciseNumber', {
+                    count: progress.exerciseIndex + 1,
+                    total: routineExercises.length,
+                  }).toUpperCase()}
+                </ThemedText>
+              )}
+              <ThemedText
+                type="subtitle"
+                numberOfLines={2}
+                style={[styles.exerciseTitle, !isFreeform && styles.exerciseTitleWithEyebrow]}
+              >
                 {exerciseName(activeExercise, locale)}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
@@ -355,9 +383,17 @@ export default function WorkoutScreen() {
 
               {restEndsAt != null && restSecondsRemaining > 0 ? (
                 <ThemedView type="backgroundElement" style={[styles.restCard, { borderColor: theme.border }]}>
-                  <ThemedText type="title" style={{ color: theme.accent }}>
-                    {restSecondsRemaining}s
-                  </ThemedText>
+                  <ProgressRing
+                    size={168}
+                    strokeWidth={10}
+                    progress={totalRestSeconds > 0 ? restSecondsRemaining / totalRestSeconds : 0}
+                    color={theme.accent}
+                    trackColor={theme.border}
+                  >
+                    <ThemedText type="title" style={{ color: theme.accent }}>
+                      {restSecondsRemaining}
+                    </ThemedText>
+                  </ProgressRing>
                   <ThemedText type="small" themeColor="textSecondary">
                     {t('workout.restLabel')}
                   </ThemedText>
@@ -393,9 +429,12 @@ export default function WorkoutScreen() {
                     accessibilityRole="button"
                     style={[styles.logButton, { backgroundColor: theme.accent }]}
                   >
-                    <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
-                      {t('routine.logSet')}
-                    </ThemedText>
+                    <View style={styles.logButtonContent}>
+                      <Icon name="check" size={16} color={theme.onAccent} strokeWidth={2} />
+                      <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
+                        {t('workout.logSet')}
+                      </ThemedText>
+                    </View>
                   </PressableScale>
 
                   {isFreeform && (
@@ -405,7 +444,7 @@ export default function WorkoutScreen() {
                       style={styles.changeExerciseButton}
                     >
                       <ThemedText type="small" themeColor="textSecondary">
-                        {t('workout.freeformChangeExercise')}
+                        {t('routine.freeformChangeExercise')}
                       </ThemedText>
                     </PressableScale>
                   )}
@@ -415,7 +454,7 @@ export default function WorkoutScreen() {
           ) : (
             <ThemedView type="backgroundElement" style={[styles.entryCard, { borderColor: theme.border }]}>
               <ThemedText type="small" themeColor="textSecondary" style={styles.freeformHint}>
-                {t('workout.freeformHint')}
+                {t('routine.freeformHint')}
               </ThemedText>
               <PressableScale
                 onPress={pickFreeformExercise}
@@ -424,16 +463,19 @@ export default function WorkoutScreen() {
                 style={[styles.logButton, { backgroundColor: theme.accent }]}
               >
                 <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
-                  {t('workout.freeformPickExercise')}
+                  {t('routine.freeformPickExercise')}
                 </ThemedText>
               </PressableScale>
             </ThemedView>
           )}
 
           {newRecords.length > 0 && (
-            <ThemedText type="small" style={[styles.prBanner, { color: theme.accent }]}>
-              {t('workout.newPersonalRecord')}
-            </ThemedText>
+            <ThemedView style={[styles.prBanner, { backgroundColor: theme.accentSoft }]}>
+              <Icon name="flame" size={16} color={theme.accent} />
+              <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                {t('workout.newPersonalRecord')}
+              </ThemedText>
+            </ThemedView>
           )}
         </ScrollView>
       </SafeAreaView>
@@ -456,22 +498,26 @@ function WorkoutSummary({
     <ThemedView style={styles.container}>
       <SafeAreaView style={[styles.safeArea, styles.summaryContainer]} edges={['top', 'bottom']}>
         <ThemedText type="title">{t('workout.summaryTitle')}</ThemedText>
-        <View style={styles.summaryStat}>
-          <ThemedText type="small" themeColor="textSecondary">
-            {t('workout.summaryVolume')}
-          </ThemedText>
-          <ThemedText type="subtitle">{Math.round(totalVolumeKg)} kg</ThemedText>
-        </View>
-        {newRecordsCount > 0 && (
-          <View style={styles.summaryStat}>
+        <View style={styles.summaryStatsRow}>
+          <View style={[styles.summaryStatCard, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+            <Icon name="dumbbell" size={20} color={theme.accent} strokeWidth={1.6} />
+            <ThemedText type="subtitle">{Math.round(totalVolumeKg)} kg</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              {t('workout.summaryNewRecords')}
-            </ThemedText>
-            <ThemedText type="subtitle" style={{ color: theme.accent }}>
-              {newRecordsCount}
+              {t('workout.summaryVolume')}
             </ThemedText>
           </View>
-        )}
+          {newRecordsCount > 0 && (
+            <View style={[styles.summaryStatCard, { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }]}>
+              <Icon name="flame" size={20} color={theme.accent} />
+              <ThemedText type="subtitle" style={{ color: theme.accent }}>
+                {newRecordsCount}
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.accent }}>
+                {t('workout.summaryNewRecords')}
+              </ThemedText>
+            </View>
+          )}
+        </View>
         <PressableScale
           onPress={onDone}
           scaleTo={0.97}
@@ -492,7 +538,9 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
   scrollContent: { padding: Spacing.three, gap: Spacing.two },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  exerciseEyebrow: { marginTop: Spacing.four },
   exerciseTitle: { marginTop: Spacing.three },
+  exerciseTitleWithEyebrow: { marginTop: Spacing.half },
   restCard: {
     alignItems: 'center',
     gap: Spacing.two,
@@ -516,9 +564,29 @@ const styles = StyleSheet.create({
   },
   entryFields: { flexDirection: 'row', gap: Spacing.three },
   logButton: { alignItems: 'center', paddingVertical: Spacing.two + 2, borderRadius: Radius.pill },
+  logButtonContent: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   changeExerciseButton: { alignItems: 'center', paddingVertical: Spacing.one },
   freeformHint: { textAlign: 'center', marginBottom: Spacing.one },
-  prBanner: { textAlign: 'center', marginTop: Spacing.three },
+  prBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: Spacing.one,
+    marginTop: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + 2,
+    borderRadius: Radius.pill,
+  },
   summaryContainer: { alignItems: 'center', justifyContent: 'center', gap: Spacing.four, padding: Spacing.four },
-  summaryStat: { alignItems: 'center', gap: Spacing.half },
+  summaryStatsRow: { flexDirection: 'row', gap: Spacing.three },
+  summaryStatCard: {
+    alignItems: 'center',
+    gap: Spacing.half,
+    minWidth: 130,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    ...CardShadow,
+  },
 });

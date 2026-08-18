@@ -1,7 +1,8 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
+import { Icon } from '@/components/icon';
 import { NumberField } from '@/components/number-field';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
@@ -94,9 +95,7 @@ export function useRoutineDraft(initialName: string, initialDays: DraftDay[]) {
         current.map((d) => (d.draftId === dayId ? { ...d, exercises: [...d.exercises, draftExercise] } : d)),
       );
     });
-    // `as Href`: generated-types staleness, not a real route error — see the
-    // same cast in routine/index.tsx.
-    router.push('/routine/pick-exercise' as Href);
+    router.push('/routine/pick-exercise');
   }
 
   function removeExercise(dayId: string, exerciseDraftId: string) {
@@ -163,6 +162,7 @@ export function RoutineDaysEditor({
         accessibilityRole="button"
         style={[styles.addDayButton, { borderColor: theme.border }]}
       >
+        <Icon name="plus" size={15} color={theme.accent} strokeWidth={2} />
         <ThemedText type="smallBold" style={{ color: theme.accent }}>
           {t('routine.addDay')}
         </ThemedText>
@@ -201,7 +201,7 @@ function DayEditor({
         />
         {canRemove && (
           <PressableScale onPress={onRemoveDay} accessibilityRole="button" accessibilityLabel={t('routine.removeDay')}>
-            <ThemedText themeColor="textSecondary">{t('routine.removeDay')}</ThemedText>
+            <Icon name="trash" size={16} color={theme.textSecondary} />
           </PressableScale>
         )}
       </View>
@@ -221,6 +221,7 @@ function DayEditor({
         accessibilityRole="button"
         style={[styles.addExerciseButton, { borderColor: theme.border }]}
       >
+        <Icon name="plus" size={14} color={theme.accent} strokeWidth={2} />
         <ThemedText type="small" style={{ color: theme.accent }}>
           {t('routine.addExercise')}
         </ThemedText>
@@ -248,7 +249,7 @@ function ExerciseEditorRow({
           {exercise.name}
         </ThemedText>
         <PressableScale onPress={onRemove} accessibilityRole="button" accessibilityLabel={t('routine.removeExercise')}>
-          <ThemedText themeColor="textSecondary">✕</ThemedText>
+          <Icon name="close" size={16} color={theme.textSecondary} />
         </PressableScale>
       </View>
 
@@ -312,14 +313,20 @@ const styles = StyleSheet.create({
   dayHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dayNameInput: { flex: 1, fontSize: 18, fontWeight: '600' },
   addExerciseButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
     paddingVertical: Spacing.two,
     borderRadius: Radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderStyle: 'dashed',
   },
   addDayButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
     paddingVertical: Spacing.two + 2,
     borderRadius: Radius.md,
     borderWidth: StyleSheet.hairlineWidth,
