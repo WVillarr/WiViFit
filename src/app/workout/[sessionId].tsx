@@ -29,7 +29,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 import { cancelRestEnd, scheduleRestEnd } from '@/notifications/rest-timer';
 
-import { requestExercisePick } from '../routine/_picker-bridge';
+import { requestExercisePick } from '@/routine-picker-bridge';
 
 /** A module-level helper, not inline in the component body, so React
  *  Compiler's purity check doesn't need to reason about a direct Date.now()

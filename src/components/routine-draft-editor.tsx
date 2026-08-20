@@ -13,7 +13,7 @@ import type { DraftDay, DraftExercise } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 
-import { requestExercisePick } from '@/app/routine/_picker-bridge';
+import { requestExercisePick } from '@/routine-picker-bridge';
 
 /**
  * Defaults chosen by trackingType, not a single "3x10" for everything — a

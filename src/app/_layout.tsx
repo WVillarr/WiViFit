@@ -14,6 +14,7 @@ import { enableFreeze } from 'react-native-screens';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors, FontFamily, type Palette } from '@/constants/theme';
+import { AuthProvider, useAuth } from '@/auth';
 import { CATALOG_DB_NAME } from '@/db';
 import { useSyncOnReconnect } from '@/sync';
 
@@ -55,8 +56,47 @@ const DarkNavigationTheme = navigationTheme(DarkTheme, Colors.dark);
  * blamed for a re-render anywhere else in the tree.
  */
 function SyncBootstrap() {
-  useSyncOnReconnect();
+  const { configured, session } = useAuth();
+  useSyncOnReconnect(configured && Boolean(session));
   return null;
+}
+
+function Navigation() {
+  const { configured, loading, session } = useAuth();
+  const colorScheme = useColorScheme();
+
+  if (loading) return null;
+  if (configured && !session) {
+    return (
+      <Stack>
+        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+      </Stack>
+    );
+  }
+
+  return (
+    <>
+      <SyncBootstrap />
+      <AnimatedSplashOverlay />
+      <Stack
+        screenOptions={{
+          headerTitleStyle: { fontFamily: FontFamily.bodySemi },
+          contentStyle: {
+            backgroundColor:
+              colorScheme === 'dark' ? Colors.dark.background : Colors.light.background,
+          },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="exercise/[id]" options={{ title: '' }} />
+        <Stack.Screen name="routine/index" options={{ title: '' }} />
+        <Stack.Screen name="routine/new" options={{ title: '' }} />
+        <Stack.Screen name="routine/[id]" options={{ title: '' }} />
+        <Stack.Screen name="routine/pick-exercise" options={{ title: '', presentation: 'modal' }} />
+        <Stack.Screen name="workout/[sessionId]" options={{ title: '', gestureEnabled: false }} />
+      </Stack>
+    </>
+  );
 }
 
 export default function RootLayout() {
@@ -80,24 +120,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={isDark ? DarkNavigationTheme : LightNavigationTheme}>
       <SQLiteProvider databaseName={CATALOG_DB_NAME} assetSource={{ assetId: catalogDbAsset }}>
-        <SyncBootstrap />
-        <AnimatedSplashOverlay />
-        <Stack
-          screenOptions={{
-            headerTitleStyle: { fontFamily: FontFamily.bodySemi },
-            contentStyle: {
-              backgroundColor: isDark ? Colors.dark.background : Colors.light.background,
-            },
-          }}
-        >
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="exercise/[id]" options={{ title: '' }} />
-          <Stack.Screen name="routine/index" options={{ title: '' }} />
-          <Stack.Screen name="routine/new" options={{ title: '' }} />
-          <Stack.Screen name="routine/[id]" options={{ title: '' }} />
-          <Stack.Screen name="routine/pick-exercise" options={{ title: '', presentation: 'modal' }} />
-          <Stack.Screen name="workout/[sessionId]" options={{ title: '', gestureEnabled: false }} />
-        </Stack>
+        <AuthProvider>
+          <Navigation />
+        </AuthProvider>
       </SQLiteProvider>
     </ThemeProvider>
   );

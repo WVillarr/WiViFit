@@ -14,7 +14,7 @@ import type { UserDb } from '@/db';
 
 import { drain } from './drain';
 import { enqueue, pendingOutbox } from './outbox';
-import { setSyncRemote, type SyncRemote } from './remote';
+import { setSyncRemote } from './remote';
 
 /**
  * Inserts an outbox row with an explicit id, bypassing enqueue()'s
@@ -26,7 +26,14 @@ import { setSyncRemote, type SyncRemote } from './remote';
 async function insertOutboxRow(db: UserDb, id: string, rowId: string) {
   await db
     .insert(outbox)
-    .values({ id, tableName: 'routines', rowId, operation: 'insert', payloadJson: '{}', createdAt: new Date().toISOString() });
+    .values({
+      id,
+      tableName: 'routines',
+      rowId,
+      operation: 'insert',
+      payloadJson: '{}',
+      createdAt: new Date().toISOString(),
+    });
 }
 
 function makeTestDb(): UserDb {
@@ -45,7 +52,7 @@ function makeTestDb(): UserDb {
   return drizzle(sqlite, { schema: { outbox } }) as unknown as UserDb;
 }
 
-afterEach(() => setSyncRemote(null as unknown as SyncRemote));
+afterEach(() => setSyncRemote(null));
 
 test('enqueue + pendingOutbox round-trips a row', async () => {
   const db = makeTestDb();

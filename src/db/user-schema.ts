@@ -57,6 +57,7 @@ export const routineDays = sqliteTable('routine_days', {
   name: text('name').notNull(),
   /** Feeds Fase 3's auto-fit-to-time-budget logic; unset for now. */
   budgetMinutes: integer('budget_minutes'),
+  updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
 });
 
@@ -74,6 +75,7 @@ export const routineExercises = sqliteTable('routine_exercises', {
   /** Set for exercises.trackingType === 'distance'; null otherwise. */
   targetDistanceMeters: integer('target_distance_meters'),
   restSeconds: integer('rest_seconds').notNull(),
+  updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
 });
 
@@ -88,6 +90,7 @@ export const workoutSessions = sqliteTable('workout_sessions', {
   startedAt: text('started_at').notNull(),
   endedAt: text('ended_at'),
   totalVolumeKg: real('total_volume_kg'),
+  updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
 });
 
@@ -106,6 +109,7 @@ export const sessionSets = sqliteTable('session_sets', {
   distanceMeters: real('distance_meters'),
   isWarmup: integer('is_warmup', { mode: 'boolean' }).notNull().default(false),
   completedAt: text('completed_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
 });
 
@@ -120,6 +124,7 @@ export const personalRecords = sqliteTable('personal_records', {
   contextWeightKg: real('context_weight_kg'),
   achievedAt: text('achieved_at').notNull(),
   sessionSetId: text('session_set_id').notNull(),
+  updatedAt: text('updated_at').notNull(),
 });
 
 // --- Sync outbox — see src/sync/outbox.ts ---
@@ -133,6 +138,12 @@ export const outbox = sqliteTable('outbox', {
   createdAt: text('created_at').notNull(),
   /** null until a sync round-trip confirms the server has it. */
   syncedAt: text('synced_at'),
+});
+
+/** One cursor per remote stream. It is local metadata, never sent to Supabase. */
+export const syncState = sqliteTable('sync_state', {
+  key: text('key').primaryKey(),
+  cursor: text('cursor'),
 });
 
 export type OutboxRow = typeof outbox.$inferSelect;

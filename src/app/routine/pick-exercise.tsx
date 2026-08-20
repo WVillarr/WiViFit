@@ -13,7 +13,7 @@ import { exercises, ExerciseRow as ExerciseRowType, searchExercises, useCatalogD
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/i18n/use-translation';
 
-import { resolveExercisePick } from './_picker-bridge';
+import { resolveExercisePick } from '@/routine-picker-bridge';
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -27,7 +27,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 /**
  * Text-search-only, unlike (tabs)/exercises.tsx's body-map browser — picking
  * an exercise for a routine you're actively building is a lookup ("bench
- * press", "leg curl"), not exploration. See _picker-bridge.ts for how the
+ * press", "leg curl"), not exploration. See routine-picker-bridge.ts for how the
  * chosen row gets back to routine/new.tsx.
  */
 export default function PickExerciseScreen() {

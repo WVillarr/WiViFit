@@ -55,6 +55,7 @@ async function insertDays(userDb: UserDb, routineId: string, days: DraftDay[]): 
       dayIndex,
       name: day.name,
       budgetMinutes: null,
+      updatedAt: new Date().toISOString(),
       deletedAt: null,
     };
     await writeAndEnqueue(userDb, 'routine_days', dayId, 'insert', dayRow, () =>
@@ -74,6 +75,7 @@ async function insertDays(userDb: UserDb, routineId: string, days: DraftDay[]): 
         targetDurationSeconds: ex.targetDurationSeconds,
         targetDistanceMeters: ex.targetDistanceMeters,
         restSeconds: ex.restSeconds,
+        updatedAt: new Date().toISOString(),
         deletedAt: null,
       };
       await writeAndEnqueue(userDb, 'routine_exercises', exId, 'insert', exRow, () =>
@@ -116,7 +118,11 @@ export async function createRoutine(userDb: UserDb, draft: RoutineDraft): Promis
  * workout still reads back correctly after the routine that generated it
  * has since been edited or its days replaced.
  */
-export async function updateRoutine(userDb: UserDb, routineId: string, draft: RoutineDraft): Promise<void> {
+export async function updateRoutine(
+  userDb: UserDb,
+  routineId: string,
+  draft: RoutineDraft,
+): Promise<void> {
   const now = new Date().toISOString();
 
   const existingDays = await userDb
@@ -131,12 +137,14 @@ export async function updateRoutine(userDb: UserDb, routineId: string, draft: Ro
       .where(and(eq(routineExercises.routineDayId, day.id), isNull(routineExercises.deletedAt)));
 
     for (const ex of existingExercises) {
-      await writeAndEnqueue(userDb, 'routine_exercises', ex.id, 'update', { deletedAt: now }, () =>
-        userDb.update(routineExercises).set({ deletedAt: now }).where(eq(routineExercises.id, ex.id)),
+      const patch = { deletedAt: now, updatedAt: now };
+      await writeAndEnqueue(userDb, 'routine_exercises', ex.id, 'update', patch, () =>
+        userDb.update(routineExercises).set(patch).where(eq(routineExercises.id, ex.id)),
       );
     }
-    await writeAndEnqueue(userDb, 'routine_days', day.id, 'update', { deletedAt: now }, () =>
-      userDb.update(routineDays).set({ deletedAt: now }).where(eq(routineDays.id, day.id)),
+    const patch = { deletedAt: now, updatedAt: now };
+    await writeAndEnqueue(userDb, 'routine_days', day.id, 'update', patch, () =>
+      userDb.update(routineDays).set(patch).where(eq(routineDays.id, day.id)),
     );
   }
 
@@ -154,8 +162,9 @@ export async function updateRoutine(userDb: UserDb, routineId: string, draft: Ro
  *  parent, so leaving them alive is harmless and this stays a single write. */
 export async function deleteRoutine(userDb: UserDb, routineId: string): Promise<void> {
   const deletedAt = new Date().toISOString();
-  await writeAndEnqueue(userDb, 'routines', routineId, 'update', { deletedAt }, () =>
-    userDb.update(routines).set({ deletedAt }).where(eq(routines.id, routineId)),
+  const patch = { deletedAt, updatedAt: deletedAt };
+  await writeAndEnqueue(userDb, 'routines', routineId, 'update', patch, () =>
+    userDb.update(routines).set(patch).where(eq(routines.id, routineId)),
   );
 }
 
@@ -207,7 +216,9 @@ export function useRoutineDayExercises(routineDayId: string | null) {
     userDb
       .select()
       .from(routineExercises)
-      .where(and(eq(routineExercises.routineDayId, routineDayId), isNull(routineExercises.deletedAt)))
+      .where(
+        and(eq(routineExercises.routineDayId, routineDayId), isNull(routineExercises.deletedAt)),
+      )
       .orderBy(routineExercises.orderIndex)
       .then((r) => {
         if (!cancelled) setState({ loadedFor: routineDayId, rows: r });
@@ -270,7 +281,9 @@ export function useRoutineDetail(routineId: string | undefined) {
           exercises: await userDb!
             .select()
             .from(routineExercises)
-            .where(and(eq(routineExercises.routineDayId, day.id), isNull(routineExercises.deletedAt)))
+            .where(
+              and(eq(routineExercises.routineDayId, day.id), isNull(routineExercises.deletedAt)),
+            )
             .orderBy(routineExercises.orderIndex),
         })),
       );

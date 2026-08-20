@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import { writeAndEnqueue } from '@/sync';
 
 import { newId } from './ids';
-import { personalRecords, sessionSets, workoutSessions, type PersonalRecordRow } from './user-schema';
+import {
+  personalRecords,
+  sessionSets,
+  workoutSessions,
+  type PersonalRecordRow,
+} from './user-schema';
 import { UserDb, useUserDb } from './user-client';
 
 /** The session row itself — mainly for its routineDayId, to know which exercises belong to it. */
@@ -40,6 +45,7 @@ export async function startSession(userDb: UserDb, routineDayId: string | null):
     startedAt: new Date().toISOString(),
     endedAt: null,
     totalVolumeKg: null,
+    updatedAt: new Date().toISOString(),
     deletedAt: null,
   };
   await writeAndEnqueue(userDb, 'workout_sessions', id, 'insert', row, () =>
@@ -85,6 +91,7 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
     distanceMeters: input.distanceMeters,
     isWarmup: input.isWarmup,
     completedAt: now,
+    updatedAt: now,
     deletedAt: null,
   };
   await writeAndEnqueue(userDb, 'session_sets', setId, 'insert', setRow, () =>
@@ -113,8 +120,16 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
       ),
     );
 
-  const candidates: { type: PersonalRecordRow['type']; value: number; contextWeightKg: number | null }[] = [
-    { type: 'estimated_1rm', value: estimated1Rm(input.weightKg, input.reps), contextWeightKg: null },
+  const candidates: {
+    type: PersonalRecordRow['type'];
+    value: number;
+    contextWeightKg: number | null;
+  }[] = [
+    {
+      type: 'estimated_1rm',
+      value: estimated1Rm(input.weightKg, input.reps),
+      contextWeightKg: null,
+    },
     { type: 'volume', value: sessionVolume, contextWeightKg: null },
     // "Reps a un peso dado" — scoped to the weight this set was done at (see
     // contextWeightKg's doc comment on personalRecords), so 30 reps at 5kg
@@ -155,6 +170,7 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
       contextWeightKg: candidate.contextWeightKg,
       achievedAt: now,
       sessionSetId: setId,
+      updatedAt: now,
     };
     await writeAndEnqueue(userDb, 'personal_records', prId, 'insert', prRow, () =>
       userDb.insert(personalRecords).values(prRow),
@@ -167,7 +183,10 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
 
 /** Closes out the session and returns the computed volume, so the summary
  *  screen doesn't need a second round-trip to read back what this just wrote. */
-export async function finishSession(userDb: UserDb, sessionId: string): Promise<{ totalVolumeKg: number }> {
+export async function finishSession(
+  userDb: UserDb,
+  sessionId: string,
+): Promise<{ totalVolumeKg: number }> {
   const [{ totalVolumeKg }] = await userDb
     .select({
       totalVolumeKg: sql<number>`COALESCE(SUM(${sessionSets.weightKg} * ${sessionSets.reps}), 0)`,
@@ -181,11 +200,11 @@ export async function finishSession(userDb: UserDb, sessionId: string): Promise<
     'workout_sessions',
     sessionId,
     'update',
-    { endedAt, totalVolumeKg },
+    { endedAt, totalVolumeKg, updatedAt: endedAt },
     () =>
       userDb
         .update(workoutSessions)
-        .set({ endedAt, totalVolumeKg })
+        .set({ endedAt, totalVolumeKg, updatedAt: endedAt })
         .where(eq(workoutSessions.id, sessionId)),
   );
 
@@ -198,7 +217,11 @@ export async function finishSession(userDb: UserDb, sessionId: string): Promise<
  * whichever of weightKg/reps/durationSeconds/distanceMeters that set had
  * populated; the caller reads only the fields its current trackingType uses.
  */
-export async function lastSetForExercise(userDb: UserDb, exerciseId: string, excludingSessionId: string) {
+export async function lastSetForExercise(
+  userDb: UserDb,
+  exerciseId: string,
+  excludingSessionId: string,
+) {
   const [row] = await userDb
     .select()
     .from(sessionSets)

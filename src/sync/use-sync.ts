@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 
 import { useUserDb } from '@/db/user-client';
 
-import { drain } from './drain';
+import { syncNow } from './sync-now';
 
 /** Belt-and-suspenders for the reconnect listener — catches a remote that recovered mid-outage. */
 const FALLBACK_POLL_MS = 60_000;
@@ -15,29 +15,31 @@ const FALLBACK_POLL_MS = 60_000;
  * Mount this once, near the root — not per-screen, or every screen with it
  * mounted would drain in parallel and race each other.
  */
-export function useSyncOnReconnect(): void {
+export function useSyncOnReconnect(enabled = true): void {
   const userDb = useUserDb();
   const wasConnected = useRef<boolean | null>(null);
 
   useEffect(() => {
-    if (!userDb) return;
+    if (!userDb || !enabled) return;
+
+    syncNow(userDb).catch((err) => console.error('[sync] initial sync failed', err));
 
     const unsubscribe = NetInfo.addEventListener((state) => {
       const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
       const justReconnected = wasConnected.current === false && isConnected;
       wasConnected.current = isConnected;
       if (justReconnected) {
-        drain(userDb).catch((err) => console.error('[sync] drain on reconnect failed', err));
+        syncNow(userDb).catch((err) => console.error('[sync] sync on reconnect failed', err));
       }
     });
 
     const interval = setInterval(() => {
-      drain(userDb).catch((err) => console.error('[sync] periodic drain failed', err));
+      syncNow(userDb).catch((err) => console.error('[sync] periodic sync failed', err));
     }, FALLBACK_POLL_MS);
 
     return () => {
       unsubscribe();
       clearInterval(interval);
     };
-  }, [userDb]);
+  }, [enabled, userDb]);
 }

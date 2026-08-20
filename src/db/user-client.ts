@@ -39,6 +39,7 @@ const SCHEMA_SQL = `
     day_index INTEGER NOT NULL,
     name TEXT NOT NULL,
     budget_minutes INTEGER,
+    updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z',
     deleted_at TEXT
   );
   CREATE INDEX IF NOT EXISTS routine_days_routine_id_idx ON routine_days(routine_id);
@@ -53,6 +54,7 @@ const SCHEMA_SQL = `
     target_duration_seconds INTEGER,
     target_distance_meters INTEGER,
     rest_seconds INTEGER NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z',
     deleted_at TEXT
   );
   CREATE INDEX IF NOT EXISTS routine_exercises_routine_day_id_idx ON routine_exercises(routine_day_id);
@@ -63,6 +65,7 @@ const SCHEMA_SQL = `
     started_at TEXT NOT NULL,
     ended_at TEXT,
     total_volume_kg REAL,
+    updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z',
     deleted_at TEXT
   );
   CREATE TABLE IF NOT EXISTS session_sets (
@@ -76,6 +79,7 @@ const SCHEMA_SQL = `
     distance_meters REAL,
     is_warmup INTEGER NOT NULL DEFAULT 0,
     completed_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z',
     deleted_at TEXT
   );
   CREATE INDEX IF NOT EXISTS session_sets_session_id_idx ON session_sets(session_id);
@@ -88,7 +92,8 @@ const SCHEMA_SQL = `
     value REAL NOT NULL,
     context_weight_kg REAL,
     achieved_at TEXT NOT NULL,
-    session_set_id TEXT NOT NULL
+    session_set_id TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'
   );
   CREATE INDEX IF NOT EXISTS personal_records_exercise_type_idx ON personal_records(exercise_id, type);
 
@@ -102,7 +107,20 @@ const SCHEMA_SQL = `
     synced_at TEXT
   );
   CREATE INDEX IF NOT EXISTS outbox_synced_at_idx ON outbox(synced_at);
+
+  CREATE TABLE IF NOT EXISTS sync_state (
+    key TEXT PRIMARY KEY,
+    cursor TEXT
+  );
 `;
+
+const UPDATED_AT_MIGRATIONS = [
+  ['routine_days', 'updated_at', "COALESCE(updated_at, '1970-01-01T00:00:00.000Z')"],
+  ['routine_exercises', 'updated_at', "COALESCE(updated_at, '1970-01-01T00:00:00.000Z')"],
+  ['workout_sessions', 'updated_at', 'COALESCE(updated_at, started_at)'],
+  ['session_sets', 'updated_at', 'COALESCE(updated_at, completed_at)'],
+  ['personal_records', 'updated_at', 'COALESCE(updated_at, achieved_at)'],
+] as const;
 
 /**
  * Opens the on-device, read-write user database — workouts, routines,
@@ -121,6 +139,14 @@ const SCHEMA_SQL = `
 async function openUserDb() {
   const expo = await SQLite.openDatabaseAsync(USER_DB_NAME);
   await expo.execAsync(SCHEMA_SQL);
+  for (const [table, column, fallback] of UPDATED_AT_MIGRATIONS) {
+    try {
+      await expo.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
+    } catch {
+      // Column already exists on current installs.
+    }
+    await expo.execAsync(`UPDATE ${table} SET ${column} = ${fallback} WHERE ${column} IS NULL`);
+  }
   return drizzle(expo, { schema: userSchema });
 }
 
