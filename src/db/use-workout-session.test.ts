@@ -34,6 +34,7 @@ function makeTestDb(): UserDb {
       distance_meters REAL,
       is_warmup INTEGER NOT NULL DEFAULT 0,
       completed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
       deleted_at TEXT
     );
     CREATE TABLE personal_records (
@@ -43,7 +44,8 @@ function makeTestDb(): UserDb {
       value REAL NOT NULL,
       context_weight_kg REAL,
       achieved_at TEXT NOT NULL,
-      session_set_id TEXT NOT NULL
+      session_set_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
     CREATE TABLE outbox (
       id TEXT PRIMARY KEY,
@@ -112,12 +114,21 @@ test('reps PR is scoped to the weight it was achieved at — a high rep count at
 
   // 4 reps at 50kg — same weight as the first set, fewer reps: must not
   // register, regardless of the unrelated 20-rep record at 5kg.
-  const heavyAgain = await logSet(db, baseSet({ sessionId: 's1', setIndex: 2, weightKg: 50, reps: 4 }));
+  const heavyAgain = await logSet(
+    db,
+    baseSet({ sessionId: 's1', setIndex: 2, weightKg: 50, reps: 4 }),
+  );
   expect(heavyAgain.find((pr) => pr.type === 'reps')).toBeUndefined();
 
   // 6 reps at 50kg — same weight, beats the standing 5-rep record at that weight.
-  const heavyBeaten = await logSet(db, baseSet({ sessionId: 's1', setIndex: 3, weightKg: 50, reps: 6 }));
-  expect(heavyBeaten.find((pr) => pr.type === 'reps')).toMatchObject({ value: 6, contextWeightKg: 50 });
+  const heavyBeaten = await logSet(
+    db,
+    baseSet({ sessionId: 's1', setIndex: 3, weightKg: 50, reps: 6 }),
+  );
+  expect(heavyBeaten.find((pr) => pr.type === 'reps')).toMatchObject({
+    value: 6,
+    contextWeightKg: 50,
+  });
 });
 
 test('a warmup set never registers a PR of any kind', async () => {

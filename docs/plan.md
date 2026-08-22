@@ -41,7 +41,7 @@ Documentado en detalle en **[docs/fase-2-guia.md](fase-2-guia.md)** — no se re
 
 > Al terminar: creás una rutina a mano, entrás en modo entrenamiento, registrás series con peso/reps (o tiempo/distancia, según el ejercicio), usás el cronómetro de descanso, y ves tu historial y tus récords. Un entrenamiento completo de 45 minutos en modo avión no pierde ni un dato.
 
-Piezas nuevas: tablas `routines`/`routine_days`/`routine_exercises`/`workout_sessions`/`session_sets`/`personal_records` en `user.db` (nunca en `catalog.db`, que se reemplaza entero en cada build); IDs generados en el cliente (`expo-crypto`) para poder escribir offline; `src/sync/` con un outbox que encola cada mutación y drena cuando hay red, borrado por lápida (`deletedAt`) en vez de `DELETE` real.
+Piezas nuevas: tablas `routines`/`routine_days`/`routine_exercises`/`workout_sessions`/`session_sets`/`personal_records` en `user.db` (nunca en `catalog.db`, que se reemplaza entero en cada build); IDs generados en el cliente (`expo-crypto`) para poder escribir offline; `src/sync/` con un outbox que encola cada mutación y drena cuando hay red, borrado por lápida (`deletedAt`) en vez de `DELETE` real; autenticación persistida con SecureStore y transporte Supabase con pull/push y LWW por `updatedAt`.
 
 ### Criterios de aceptación (verbatim, de `docs/fase-2-guia.md`)
 

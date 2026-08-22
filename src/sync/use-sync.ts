@@ -1,8 +1,8 @@
 import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useRef } from 'react';
 
+import { isSupabaseConfigured, useAuthSession } from '@/auth';
 import { useUserDb } from '@/db/user-client';
-import { useAuthSession, isSupabaseConfigured } from '@/auth';
 
 import { drain } from './drain';
 import { applyRemoteChanges, createSupabaseRemote, getSyncRemote, setSyncRemote } from './remote';
@@ -17,7 +17,7 @@ const FALLBACK_POLL_MS = 60_000;
  * Mount this once, near the root — not per-screen, or every screen with it
  * mounted would drain in parallel and race each other.
  */
-export function useSyncOnReconnect(): void {
+export function useSyncOnReconnect(enabled = true): void {
   const userDb = useUserDb();
   const { session } = useAuthSession();
   const wasConnected = useRef<boolean | null>(null);
@@ -62,5 +62,5 @@ export function useSyncOnReconnect(): void {
       unsubscribe();
       clearInterval(interval);
     };
-  }, [userDb]);
+  }, [enabled, userDb]);
 }

@@ -7,11 +7,12 @@ import {
 } from '@expo-google-fonts/ibm-plex-sans';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import { SQLiteProvider } from 'expo-sqlite';
 import * as SplashScreen from 'expo-splash-screen';
+import { SQLiteProvider } from 'expo-sqlite';
 import { useColorScheme } from 'react-native';
 import { enableFreeze } from 'react-native-screens';
 
+import { useAuth } from '@/auth';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors, FontFamily, type Palette } from '@/constants/theme';
 import { CATALOG_DB_NAME } from '@/db';
@@ -55,8 +56,47 @@ const DarkNavigationTheme = navigationTheme(DarkTheme, Colors.dark);
  * blamed for a re-render anywhere else in the tree.
  */
 function SyncBootstrap() {
-  useSyncOnReconnect();
+  const { configured, session } = useAuth();
+  useSyncOnReconnect(configured && Boolean(session));
   return null;
+}
+
+function Navigation() {
+  const { configured, loading, session } = useAuth();
+  const colorScheme = useColorScheme();
+
+  if (loading) return null;
+  if (configured && !session) {
+    return (
+      <Stack>
+        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+      </Stack>
+    );
+  }
+
+  return (
+    <>
+      <SyncBootstrap />
+      <AnimatedSplashOverlay />
+      <Stack
+        screenOptions={{
+          headerTitleStyle: { fontFamily: FontFamily.bodySemi },
+          contentStyle: {
+            backgroundColor:
+              colorScheme === 'dark' ? Colors.dark.background : Colors.light.background,
+          },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="exercise/[id]" options={{ title: '' }} />
+        <Stack.Screen name="routine/index" options={{ title: '' }} />
+        <Stack.Screen name="routine/new" options={{ title: '' }} />
+        <Stack.Screen name="routine/[id]" options={{ title: '' }} />
+        <Stack.Screen name="routine/pick-exercise" options={{ title: '', presentation: 'modal' }} />
+        <Stack.Screen name="workout/[sessionId]" options={{ title: '', gestureEnabled: false }} />
+      </Stack>
+    </>
+  );
 }
 
 export default function RootLayout() {

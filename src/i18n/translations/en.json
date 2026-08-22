@@ -4,6 +4,17 @@
     "errorMessage": "Something went wrong. Try again.",
     "retry": "Retry"
   },
+  "auth": {
+    "title": "Train with your history",
+    "subtitle": "Sign in to sync your routines and workouts.",
+    "email": "Email",
+    "password": "Password (at least 6 characters)",
+    "signIn": "Sign in",
+    "createAccount": "Create account",
+    "needAccount": "Don't have an account? Create one",
+    "haveAccount": "Already have an account? Sign in",
+    "accountCreated": "Account created. Check your email if Supabase requires confirmation."
+  },
   "tabs": {
     "exercises": "Exercises",
     "home": "Home",

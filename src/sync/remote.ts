@@ -1,9 +1,9 @@
 import { isNull } from 'drizzle-orm';
 import type { SQLiteBindValue } from 'expo-sqlite';
 
+import { getSession, isSupabaseConfigured } from '@/auth';
 import type { UserDb } from '@/db/user-client';
 import { outbox, type OutboxRow } from '@/db/user-schema';
-import { getSession, isSupabaseConfigured } from '@/auth';
 
 const REMOTE_TABLES = [
   'routines',

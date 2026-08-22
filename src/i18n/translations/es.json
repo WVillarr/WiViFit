@@ -4,6 +4,17 @@
     "errorMessage": "Algo salió mal. Intenta de nuevo.",
     "retry": "Reintentar"
   },
+  "auth": {
+    "title": "Entrena con tu historial",
+    "subtitle": "Inicia sesión para sincronizar tus rutinas y entrenamientos.",
+    "email": "Correo electrónico",
+    "password": "Contraseña (mínimo 6 caracteres)",
+    "signIn": "Iniciar sesión",
+    "createAccount": "Crear cuenta",
+    "needAccount": "¿No tienes cuenta? Crear una",
+    "haveAccount": "¿Ya tienes cuenta? Iniciar sesión",
+    "accountCreated": "Cuenta creada. Revisa tu correo si Supabase pide confirmación."
+  },
   "tabs": {
     "exercises": "Ejercicios",
     "home": "Inicio",

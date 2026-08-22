@@ -45,6 +45,7 @@ export async function startSession(userDb: UserDb, routineDayId: string | null):
     startedAt: new Date().toISOString(),
     endedAt: null,
     totalVolumeKg: null,
+    updatedAt: new Date().toISOString(),
     deletedAt: null,
   };
   await writeAndEnqueue(userDb, 'workout_sessions', id, 'insert', row, () =>
@@ -90,6 +91,7 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
     distanceMeters: input.distanceMeters,
     isWarmup: input.isWarmup,
     completedAt: now,
+    updatedAt: now,
     deletedAt: null,
   };
   await writeAndEnqueue(userDb, 'session_sets', setId, 'insert', setRow, () =>
@@ -168,6 +170,7 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
       contextWeightKg: candidate.contextWeightKg,
       achievedAt: now,
       sessionSetId: setId,
+      updatedAt: now,
     };
     await writeAndEnqueue(userDb, 'personal_records', prId, 'insert', prRow, () =>
       userDb.insert(personalRecords).values(prRow),
@@ -197,11 +200,11 @@ export async function finishSession(
     'workout_sessions',
     sessionId,
     'update',
-    { endedAt, totalVolumeKg },
+    { endedAt, totalVolumeKg, updatedAt: endedAt },
     () =>
       userDb
         .update(workoutSessions)
-        .set({ endedAt, totalVolumeKg })
+        .set({ endedAt, totalVolumeKg, updatedAt: endedAt })
         .where(eq(workoutSessions.id, sessionId)),
   );
 
