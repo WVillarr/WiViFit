@@ -2,7 +2,7 @@ import { sql, eq } from 'drizzle-orm';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   FadeInRight,
@@ -209,6 +209,21 @@ export default function HomeScreen() {
               disabled={startingFreeform}
             />
           </ThemedView>
+
+          <PressableScale
+            onPress={() => router.push('/history' as never)}
+            accessibilityRole="button"
+            style={[styles.progressCard, { borderColor: theme.border }]}
+          >
+            <Icon name="flame" size={18} color={theme.accent} />
+            <View style={styles.progressCopy}>
+              <ThemedText type="smallBold">{t('home.historyButton')}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t('history.subtitle')}
+              </ThemedText>
+            </View>
+            <Icon name="chevron" size={18} color={theme.textSecondary} />
+          </PressableScale>
 
           {favoriteItems.length > 0 && (
             <ExerciseShelf title={t('home.favoritesTitle')} items={favoriteItems} />
@@ -462,6 +477,15 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
     backgroundColor: 'transparent',
   },
+  progressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.lg,
+  },
+  progressCopy: { flex: 1, gap: Spacing.half },
   quickStartTile: {
     flex: 1,
     gap: Spacing.two,

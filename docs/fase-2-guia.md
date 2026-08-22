@@ -152,10 +152,10 @@ Nuevo módulo. Principio: **SQLite es la fuente de verdad; Supabase es el respal
 
 ## 6. Autenticación
 
-Todavía no hay Supabase en el proyecto (`package.json` no lo tiene). Es trabajo nuevo de esta fase:
+La implementación usa REST directo (sin añadir un SDK de Supabase) y guarda la sesión en SecureStore. El proyecto remoto se configura con `.env.example` y `supabase/schema.sql`:
 
-1. `npx expo install @supabase/supabase-js` + proyecto en Supabase.
-2. Auth por email/magic-link o Apple/Google Sign-In (a decidir con el usuario si no está ya decidido en el plan general).
+1. Crear el proyecto en Supabase y copiar URL + anon key a `.env`.
+2. Auth por email/contraseña en `src/auth/session.ts`.
 3. **RLS activo desde el primer día**, no como parche final: cada tabla en Supabase con `auth.uid() = user_id`.
 4. El outbox no envía nada hasta que hay sesión — antes de eso, todo vive solo local (igual que hoy `favorites`).
 

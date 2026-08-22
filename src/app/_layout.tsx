@@ -95,8 +95,13 @@ export default function RootLayout() {
           <Stack.Screen name="routine/index" options={{ title: '' }} />
           <Stack.Screen name="routine/new" options={{ title: '' }} />
           <Stack.Screen name="routine/[id]" options={{ title: '' }} />
-          <Stack.Screen name="routine/pick-exercise" options={{ title: '', presentation: 'modal' }} />
+          <Stack.Screen
+            name="routine/pick-exercise"
+            options={{ title: '', presentation: 'modal' }}
+          />
           <Stack.Screen name="workout/[sessionId]" options={{ title: '', gestureEnabled: false }} />
+          <Stack.Screen name="history" options={{ title: '' }} />
+          <Stack.Screen name="auth" options={{ title: '' }} />
         </Stack>
       </SQLiteProvider>
     </ThemeProvider>

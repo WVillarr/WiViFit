@@ -1,10 +1,15 @@
-import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { useEffect, useState } from 'react';
 
 import { writeAndEnqueue } from '@/sync';
 
 import { newId } from './ids';
-import { personalRecords, sessionSets, workoutSessions, type PersonalRecordRow } from './user-schema';
+import {
+  personalRecords,
+  sessionSets,
+  workoutSessions,
+  type PersonalRecordRow,
+} from './user-schema';
 import { UserDb, useUserDb } from './user-client';
 
 /** The session row itself — mainly for its routineDayId, to know which exercises belong to it. */
@@ -113,8 +118,16 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
       ),
     );
 
-  const candidates: { type: PersonalRecordRow['type']; value: number; contextWeightKg: number | null }[] = [
-    { type: 'estimated_1rm', value: estimated1Rm(input.weightKg, input.reps), contextWeightKg: null },
+  const candidates: {
+    type: PersonalRecordRow['type'];
+    value: number;
+    contextWeightKg: number | null;
+  }[] = [
+    {
+      type: 'estimated_1rm',
+      value: estimated1Rm(input.weightKg, input.reps),
+      contextWeightKg: null,
+    },
     { type: 'volume', value: sessionVolume, contextWeightKg: null },
     // "Reps a un peso dado" — scoped to the weight this set was done at (see
     // contextWeightKg's doc comment on personalRecords), so 30 reps at 5kg
@@ -167,7 +180,10 @@ export async function logSet(userDb: UserDb, input: LogSetInput): Promise<Person
 
 /** Closes out the session and returns the computed volume, so the summary
  *  screen doesn't need a second round-trip to read back what this just wrote. */
-export async function finishSession(userDb: UserDb, sessionId: string): Promise<{ totalVolumeKg: number }> {
+export async function finishSession(
+  userDb: UserDb,
+  sessionId: string,
+): Promise<{ totalVolumeKg: number }> {
   const [{ totalVolumeKg }] = await userDb
     .select({
       totalVolumeKg: sql<number>`COALESCE(SUM(${sessionSets.weightKg} * ${sessionSets.reps}), 0)`,
@@ -198,7 +214,11 @@ export async function finishSession(userDb: UserDb, sessionId: string): Promise<
  * whichever of weightKg/reps/durationSeconds/distanceMeters that set had
  * populated; the caller reads only the fields its current trackingType uses.
  */
-export async function lastSetForExercise(userDb: UserDb, exerciseId: string, excludingSessionId: string) {
+export async function lastSetForExercise(
+  userDb: UserDb,
+  exerciseId: string,
+  excludingSessionId: string,
+) {
   const [row] = await userDb
     .select()
     .from(sessionSets)
@@ -221,4 +241,46 @@ export async function setsForSession(userDb: UserDb, sessionId: string) {
     .from(sessionSets)
     .where(and(eq(sessionSets.sessionId, sessionId), isNull(sessionSets.deletedAt)))
     .orderBy(sessionSets.completedAt);
+}
+
+export type WorkoutHistoryItem = typeof workoutSessions.$inferSelect & { setCount: number };
+
+/** Local-first history used by the progress screen; it works before sign-in. */
+export function useWorkoutHistory() {
+  const userDb = useUserDb();
+  const [history, setHistory] = useState<WorkoutHistoryItem[]>([]);
+  const [records, setRecords] = useState<PersonalRecordRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userDb) return;
+    let cancelled = false;
+
+    Promise.all([
+      userDb
+        .select()
+        .from(workoutSessions)
+        .where(and(isNotNull(workoutSessions.endedAt), isNull(workoutSessions.deletedAt)))
+        .orderBy(desc(workoutSessions.startedAt)),
+      userDb.select().from(sessionSets).where(isNull(sessionSets.deletedAt)),
+      userDb.select().from(personalRecords).orderBy(desc(personalRecords.achievedAt)),
+    ])
+      .then(([sessions, sets, personalRecordRows]) => {
+        if (cancelled) return;
+        const counts = new Map<string, number>();
+        sets.forEach((set) => counts.set(set.sessionId, (counts.get(set.sessionId) ?? 0) + 1));
+        setHistory(
+          sessions.map((session) => ({ ...session, setCount: counts.get(session.id) ?? 0 })),
+        );
+        setRecords(personalRecordRows);
+        setLoading(false);
+      })
+      .catch((err) => console.error('[history] load failed', err));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userDb]);
+
+  return { history, records, loading };
 }

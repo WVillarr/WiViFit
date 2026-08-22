@@ -35,7 +35,7 @@ Un catálogo de 1.324 ejercicios, buscable y filtrable, que funciona sin conexi�
 
 ## Fase 2 — Entrenar y registrar
 
-**Estado: en progreso** (rutinas, sesiones, timer de descanso y el outbox de sync ya aterrizaron en el repo; falta Supabase real).
+**Estado: implementación completa; activación externa pendiente** (rutinas, sesiones, timer, historial, auth REST, outbox transaccional y adaptador Supabase ya aterrizaron en el repo).
 
 Documentado en detalle en **[docs/fase-2-guia.md](fase-2-guia.md)** — no se repite acá. Resumen:
 
@@ -52,10 +52,10 @@ Piezas nuevas: tablas `routines`/`routine_days`/`routine_exercises`/`workout_ses
 - Dos dispositivos con la misma cuenta, edición cruzada sin red, reconexión de ambos → convergen sin duplicados.
 - Todas las tablas de usuario en Supabase tienen RLS verificado.
 
-### Lo que falta para cerrarla
+### Lo que falta para cerrarla operativamente
 
-- Proyecto Supabase real + autenticación (§6 de la guía) — hoy `src/sync/remote.ts` es deliberadamente un stub sin implementación de red, tal como pedía el plan de Fase 1.
-- Los criterios de aceptación de arriba no están verificados todavía.
+- Crear el proyecto Supabase, ejecutar `supabase/schema.sql` y copiar sus credenciales a `.env` a partir de `.env.example`.
+- Ejecutar las pruebas de aceptación con dos dispositivos reales; los tests locales cubren la lógica, no el ciclo de vida del sistema operativo ni RLS remoto.
 
 ---
 

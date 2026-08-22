@@ -23,7 +23,8 @@
     "recentTitle": "Vistos recientemente",
     "suggestedTitle": "Sugeridos para hoy",
     "shuffle": "Mezclar",
-    "quickAccessTitle": "Grupos musculares"
+    "quickAccessTitle": "Grupos musculares",
+    "historyButton": "Historial y récords"
   },
   "exercises": {
     "searchPlaceholder": "Buscar ejercicios...",
@@ -232,5 +233,33 @@
     "distanceMeters": "Distancia (m)",
     "logSet": "Registrar serie",
     "newPersonalRecord": "¡Nuevo récord personal!"
+  },
+  "history": {
+    "title": "Tu progreso",
+    "subtitle": "Entrenamientos y récords guardados en este dispositivo.",
+    "sessions": "Entrenamientos",
+    "records": "Récords personales",
+    "loading": "Cargando progreso…",
+    "empty": "Completa tu primer entrenamiento para verlo aquí.",
+    "recordsEmpty": "Tus récords aparecerán cuando registres una serie.",
+    "sets": "{{count}} series",
+    "estimated1rm": "1RM estimado",
+    "volume": "volumen"
+  },
+  "account": {
+    "title": "Cuenta",
+    "subtitle": "Sincroniza tu progreso entre dispositivos.",
+    "localOnly": "Solo local por ahora",
+    "configureHint": "Añade las variables de Supabase para activar la cuenta.",
+    "signIn": "Iniciar sesión",
+    "signUp": "Crear cuenta",
+    "signOut": "Cerrar sesión",
+    "needAccount": "¿No tienes cuenta? Crear una",
+    "haveAccount": "¿Ya tienes cuenta? Iniciar sesión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "working": "Espera…",
+    "invalidForm": "Escribe un correo y una contraseña de al menos 6 caracteres.",
+    "confirmEmail": "Revisa tu correo para confirmar la cuenta."
   }
 }

@@ -31,22 +31,17 @@ export async function enqueue(
 }
 
 /**
- * Runs `write`, then enqueues its outbox entry. Every mutation in the
+ * Runs `write` and enqueues its outbox entry in one SQLite transaction. Every mutation in the
  * routine/workout write path (src/db/use-routines.ts, use-workout-session.ts,
  * ...) should go through this rather than calling userDb.insert/update/delete
  * directly, so no write is ever made durable locally without also being
  * queued to sync.
  *
- * NOT wrapped in `userDb.transaction()` — deliberately. drizzle-orm's
- * expo-sqlite driver only ships a *synchronous* transaction implementation
- * (`ExpoSQLiteTransaction` runs `executeSync` under the hood), the same sync
- * API user-client.ts already avoids for the top-level connection because it
- * throws `SharedArrayBuffer is not defined` on web without cross-origin-
- * isolation headers. Wrapping these two awaited statements in `.transaction()`
- * would silently reintroduce that crash on web. The gap this leaves — a crash
- * between the two `await`s below — is a single-digit-millisecond window
- * versus SQLite's own durability, not the multi-second "app got killed
- * mid-workout" scenario the Fase 2 offline test actually exercises.
+ * Drizzle's Expo driver exposes the underlying SQLite client as `$client` and
+ * its sync query builders expose `.run()`. Keeping both statements inside
+ * `withTransactionSync()` closes the only window where a local row could be
+ * durable without its queue entry. The workout writes are tiny, so the brief
+ * synchronous section is preferable to risking data loss.
  */
 export async function writeAndEnqueue<T>(
   userDb: UserDb,
@@ -54,10 +49,34 @@ export async function writeAndEnqueue<T>(
   rowId: string,
   operation: OutboxOperation,
   payload: unknown,
-  write: () => Promise<T>,
+  write: () => T,
 ): Promise<T> {
-  const result = await write();
-  await enqueue(userDb, tableName, rowId, operation, payload);
+  let result!: T;
+  const createdAt = new Date().toISOString();
+  const payloadJson = JSON.stringify(payload);
+  const query = write as unknown as { (): T };
+
+  const runTransaction = userDb.$client as unknown as {
+    withTransactionSync?: (task: () => void) => void;
+    transaction?: (task: () => void) => () => void;
+  };
+  const transactionBody = () => {
+    const statement = query();
+    const runnable = statement as T & { run?: () => unknown };
+    if (typeof runnable.run !== 'function') {
+      throw new Error('writeAndEnqueue requiere una consulta SQLite sync con .run().');
+    }
+    result = runnable.run() as T;
+    userDb
+      .insert(outbox)
+      .values({ id: newId(), tableName, rowId, operation, payloadJson, createdAt, syncedAt: null })
+      .run();
+  };
+
+  if (runTransaction.withTransactionSync) runTransaction.withTransactionSync(transactionBody);
+  else if (runTransaction.transaction) runTransaction.transaction(transactionBody)();
+  else transactionBody();
+
   return result;
 }
 

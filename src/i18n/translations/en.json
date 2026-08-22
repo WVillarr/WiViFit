@@ -23,7 +23,8 @@
     "recentTitle": "Recently viewed",
     "suggestedTitle": "Suggested for today",
     "shuffle": "Shuffle",
-    "quickAccessTitle": "Muscle groups"
+    "quickAccessTitle": "Muscle groups",
+    "historyButton": "History and records"
   },
   "exercises": {
     "searchPlaceholder": "Search exercises...",
@@ -232,5 +233,33 @@
     "distanceMeters": "Distance (m)",
     "logSet": "Log set",
     "newPersonalRecord": "New personal record!"
+  },
+  "history": {
+    "title": "Your progress",
+    "subtitle": "Workouts and records saved on this device.",
+    "sessions": "Workouts",
+    "records": "Personal records",
+    "loading": "Loading progress…",
+    "empty": "Complete your first workout to see it here.",
+    "recordsEmpty": "Your records will appear after you log a set.",
+    "sets": "{{count}} sets",
+    "estimated1rm": "estimated 1RM",
+    "volume": "volume"
+  },
+  "account": {
+    "title": "Account",
+    "subtitle": "Sync your progress across devices.",
+    "localOnly": "Local only for now",
+    "configureHint": "Add the Supabase variables to enable an account.",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "signOut": "Sign out",
+    "needAccount": "No account? Create one",
+    "haveAccount": "Already have an account? Sign in",
+    "email": "Email",
+    "password": "Password",
+    "working": "Working…",
+    "invalidForm": "Enter an email and a password with at least 6 characters.",
+    "confirmEmail": "Check your email to confirm the account."
   }
 }
